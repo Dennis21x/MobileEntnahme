@@ -81,7 +81,7 @@ body {
 .me-dropdown.show .me-dropdown-content {
     display: block;
 }
-/* Flexbox für Materialnummernfeld und Kamera-Icon */
+/* Flexbox für SAP-Nummernfeld und Kamera-Icon */
 .material-input-group {
     display: flex;
     align-items: center;
@@ -154,11 +154,34 @@ body {
         font-weight: bold;
         content: attr(data-label);
     }
-    .overflow-x-auto td:nth-of-type(1):before { content: "Materialnummer"; }
-    .overflow-x-auto td:nth-of-type(2):before { content: "Beschreibung"; }
+    
+    .overflow-x-auto td:nth-of-type(1):before { content: "SAP-Nr."; }
+    .overflow-x-auto td:nth-of-type(2):before { content: ""; } /* Hide generic label for description */
     .overflow-x-auto td:nth-of-type(3):before { content: "ME"; }
     .overflow-x-auto td:nth-of-type(4):before { content: "Menge"; }
     
+    /* --- NEU: Besseres Layout für Beschreibung in mobiler Ansicht --- */
+    .overflow-x-auto td[data-label="Beschreibung"] {
+        padding: 0.5rem;
+        padding-top: 2rem; /* Platz für das Label schaffen */
+        text-align: left;
+    }
+    .overflow-x-auto td[data-label="Beschreibung"]:before {
+        content: "Beschreibung"; /* Label explizit setzen */
+        position: absolute;
+        top: 6px;
+        left: 6px;
+        width: auto; /* Automatische Breite */
+        padding-right: 0;
+        font-weight: bold;
+        text-align: left;
+    }
+    .overflow-x-auto td[data-label="Beschreibung"] .description-field {
+        width: 100%;
+        text-align: left;
+    }
+    /* --- ENDE --- */
+
     /* Specific adjustments for input fields in responsive table */
     .overflow-x-auto td .material-input-group {
         width: 100%;
@@ -171,8 +194,7 @@ body {
         width: 100%;
     }
     .overflow-x-auto td .me-input,
-    .overflow-x-auto td .menge-input,
-    .overflow-x-auto td .description-field {
+    .overflow-x-auto td .menge-input {
         text-align: right;
     }
     .overflow-x-auto td .me-dropdown-content {
