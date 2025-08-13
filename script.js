@@ -787,8 +787,6 @@ function exportClarificationCasesToCSV() {
 
 
 // --- ANPASSUNG: Barcode-Scanner-Funktion überarbeitet ---
-// Die Logik wurde geändert, um direkt die Rückkamera (environment) anzufordern
-// und die Zoom-Funktion beizubehalten. Dies behebt das Problem, dass die Frontkamera geöffnet wurde.
 async function openBarcodeScanner(rowNumber) {
     currentMaterialInput = document.querySelector(`[name="material_${rowNumber}"]`);
     const scannerDialog = document.getElementById('barcodeScannerDialog');
@@ -803,16 +801,9 @@ async function openBarcodeScanner(rowNumber) {
             throw new Error('Kamerazugriff wird von diesem Browser nicht unterstützt.');
         }
 
-        const hints = new Map();
-        const formats = [
-            ZXing.BarcodeFormat.CODE_128,
-            ZXing.BarcodeFormat.CODE_39,
-            ZXing.BarcodeFormat.EAN_13,
-            ZXing.BarcodeFormat.QR_CODE
-        ];
-        hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
-        
-        codeReader = new ZXing.BrowserMultiFormatReader(hints);
+        // ANPASSUNG: Die "hints" wurden entfernt. BrowserMultiFormatReader wird nun versuchen, alle
+        // unterstützten Formate (inkl. CODE 128) zu erkennen, was die Erkennung robuster macht.
+        codeReader = new ZXing.BrowserMultiFormatReader();
 
         // Fordere direkt die Rückkamera (environment) an
         const constraints = {
@@ -852,7 +843,6 @@ async function openBarcodeScanner(rowNumber) {
                 closeBarcodeScanner();
             }
             if (err && !(err instanceof ZXing.NotFoundException)) {
-                // Ignoriert den "nicht gefunden"-Fehler, der kontinuierlich auftritt
                 console.error('Scan-Fehler:', err);
                 scannerStatus.textContent = `Fehler beim Scannen.`;
             }
