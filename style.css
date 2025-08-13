@@ -21,6 +21,8 @@ body {
 }
 .description-field {
     background-color: #f9f9f9;
+    /* ANPASSUNG: Erlaubt dem Benutzer, die Höhe des Textfeldes bei Bedarf manuell anzupassen. */
+    resize: vertical; 
 }
 .description-field.auto-filled {
     background-color: #e8f4ff;
@@ -135,7 +137,7 @@ body {
         border: 1px solid #ccc;
         margin-bottom: 0.5rem;
         border-radius: 8px;
-        overflow: hidden;
+        /* ANPASSUNG: "overflow: hidden" wurde entfernt, damit das ME-Dropdown-Menü nicht abgeschnitten wird. */
     }
     .overflow-x-auto td {
         border: none;
@@ -160,7 +162,7 @@ body {
     .overflow-x-auto td:nth-of-type(3):before { content: "ME"; }
     .overflow-x-auto td:nth-of-type(4):before { content: "Menge"; }
     
-    /* --- NEU: Besseres Layout für Beschreibung in mobiler Ansicht --- */
+    /* --- ANPASSUNG: Besseres Layout für Beschreibung in mobiler Ansicht --- */
     .overflow-x-auto td[data-label="Beschreibung"] {
         padding: 0.5rem;
         padding-top: 2rem; /* Platz für das Label schaffen */
@@ -179,6 +181,7 @@ body {
     .overflow-x-auto td[data-label="Beschreibung"] .description-field {
         width: 100%;
         text-align: left;
+        min-height: 38px; /* Stellt sicher, dass die Höhe zu anderen Feldern passt */
     }
     /* --- ENDE --- */
 
