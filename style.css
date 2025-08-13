@@ -21,8 +21,11 @@ body {
 }
 .description-field {
     background-color: #f9f9f9;
-    /* ANPASSUNG: Erlaubt dem Benutzer, die Höhe des Textfeldes bei Bedarf manuell anzupassen. */
-    resize: vertical; 
+    /* ANPASSUNG: Größenänderung ist jetzt deaktiviert und Höhe ist fest. */
+    resize: none; 
+    height: 42px; /* Feste Höhe für Desktop, passend zu anderen Inputs */
+    padding-top: 0.65rem; /* Feinabstimmung für bessere vertikale Zentrierung in der festen Höhe */
+    padding-bottom: 0.65rem;
 }
 .description-field.auto-filled {
     background-color: #e8f4ff;
@@ -137,7 +140,6 @@ body {
         border: 1px solid #ccc;
         margin-bottom: 0.5rem;
         border-radius: 8px;
-        /* ANPASSUNG: "overflow: hidden" wurde entfernt, damit das ME-Dropdown-Menü nicht abgeschnitten wird. */
     }
     .overflow-x-auto td {
         border: none;
@@ -165,15 +167,15 @@ body {
     /* --- ANPASSUNG: Besseres Layout für Beschreibung in mobiler Ansicht --- */
     .overflow-x-auto td[data-label="Beschreibung"] {
         padding: 0.5rem;
-        padding-top: 2rem; /* Platz für das Label schaffen */
+        padding-top: 2rem; 
         text-align: left;
     }
     .overflow-x-auto td[data-label="Beschreibung"]:before {
-        content: "Beschreibung"; /* Label explizit setzen */
+        content: "Beschreibung"; 
         position: absolute;
         top: 6px;
         left: 6px;
-        width: auto; /* Automatische Breite */
+        width: auto; 
         padding-right: 0;
         font-weight: bold;
         text-align: left;
@@ -181,7 +183,8 @@ body {
     .overflow-x-auto td[data-label="Beschreibung"] .description-field {
         width: 100%;
         text-align: left;
-        min-height: 38px; /* Stellt sicher, dass die Höhe zu anderen Feldern passt */
+        /* ANPASSUNG: Feste Höhe für ca. 2 Zeilen Text in der mobilen Ansicht */
+        height: 4.5rem;
     }
     /* --- ENDE --- */
 
