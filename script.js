@@ -33,8 +33,7 @@ let isInAdminMode = false; // Track admin mode state
 // Barcode Scanner Variablen
 let codeReader = null; // Instanz des ZXing CodeReader
 let currentMaterialInput = null; // Speichert das Input-Feld, das gerade gescannt werden soll
-let localStream = null; // --- NEU: Hält den aktiven Kamera-Stream für den Zoom
-
+let localStream = null; // Hält den aktiven Kamera-Stream
 // Datum und Uhrzeit aktualisieren
 function updateDateTime() {
     const now = new Date();
@@ -787,7 +786,9 @@ function exportClarificationCasesToCSV() {
 }
 
 
-// --- NEU: Barcode-Scanner-Funktionen mit Zoom ---
+// --- ANPASSUNG: Barcode-Scanner-Funktion überarbeitet ---
+// Die Logik wurde geändert, um direkt die Rückkamera (environment) anzufordern
+// und die Zoom-Funktion beizubehalten. Dies behebt das Problem, dass die Frontkamera geöffnet wurde.
 async function openBarcodeScanner(rowNumber) {
     currentMaterialInput = document.querySelector(`[name="material_${rowNumber}"]`);
     const scannerDialog = document.getElementById('barcodeScannerDialog');
@@ -799,7 +800,7 @@ async function openBarcodeScanner(rowNumber) {
 
     try {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            throw new Error('Kamerazugriff nicht unterstützt.');
+            throw new Error('Kamerazugriff wird von diesem Browser nicht unterstützt.');
         }
 
         const hints = new Map();
@@ -813,41 +814,35 @@ async function openBarcodeScanner(rowNumber) {
         
         codeReader = new ZXing.BrowserMultiFormatReader(hints);
 
-        const videoInputDevices = await codeReader.listVideoInputDevices();
-        if (videoInputDevices.length === 0) {
-            throw new Error('Keine Kamera gefunden.');
-        }
-
-        // Bevorzugt die rückseitige Kamera
-        const rearCamera = videoInputDevices.find(device => /back|environment/i.test(device.label));
-        const deviceId = rearCamera ? rearCamera.deviceId : videoInputDevices[0].deviceId;
-
-        // Stream manuell abrufen, um Zoom anzuwenden
-        localStream = await navigator.mediaDevices.getUserMedia({
-            video: { deviceId: { exact: deviceId } }
-        });
+        // Fordere direkt die Rückkamera (environment) an
+        const constraints = {
+            video: { 
+                facingMode: { ideal: "environment" } 
+            }
+        };
+        localStream = await navigator.mediaDevices.getUserMedia(constraints);
 
         const videoTrack = localStream.getVideoTracks()[0];
         const capabilities = videoTrack.getCapabilities();
 
-        // Zoom-Fähigkeit prüfen und Zoom anwenden
+        // Zoom-Fähigkeit prüfen und den gewünschten Zoom anwenden
         if (capabilities.zoom) {
             try {
                 await videoTrack.applyConstraints({ advanced: [{ zoom: 4.0 }] });
-                console.log("4x Zoom angewendet.");
+                console.log("4x Zoom auf Rückkamera angewendet.");
             } catch (e) {
-                console.warn("Zoom konnte nicht angewendet werden:", e);
+                console.warn("Spezifischer Zoom-Wert konnte nicht angewendet werden:", e);
             }
         } else {
             console.warn("Zoom wird von diesem Gerät nicht unterstützt.");
         }
         
         qrVideo.srcObject = localStream;
-        await qrVideo.play(); // Warten, bis das Video abgespielt wird
+        await qrVideo.play();
 
         scannerStatus.textContent = 'Scannen läuft... Halten Sie den Barcode vor die Kamera.';
         
-        // decodeFromVideoElement verwenden, da wir den Stream manuell verwalten
+        // Starte das Scannen vom Video-Element
         codeReader.decodeFromVideoElement(qrVideo, (result, err) => {
             if (result) {
                 if (currentMaterialInput) {
@@ -857,6 +852,7 @@ async function openBarcodeScanner(rowNumber) {
                 closeBarcodeScanner();
             }
             if (err && !(err instanceof ZXing.NotFoundException)) {
+                // Ignoriert den "nicht gefunden"-Fehler, der kontinuierlich auftritt
                 console.error('Scan-Fehler:', err);
                 scannerStatus.textContent = `Fehler beim Scannen.`;
             }
@@ -867,6 +863,8 @@ async function openBarcodeScanner(rowNumber) {
         let errorMessage = 'Kamerazugriff fehlgeschlagen.';
         if (err.name === 'NotAllowedError') {
             errorMessage = 'Kamerazugriff wurde verweigert. Bitte erlauben Sie den Zugriff in Ihren Browsereinstellungen.';
+        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+             errorMessage = 'Keine passende Kamera gefunden. Stellen Sie sicher, dass eine Rückkamera verfügbar ist.';
         } else {
             errorMessage = err.message;
         }
@@ -889,4 +887,4 @@ function closeBarcodeScanner() {
     currentMaterialInput = null;
     localStream = null; // Stream-Variable zurücksetzen
 }
-// --- ENDE ---
+// --- ENDE ANPASSUNG ---
