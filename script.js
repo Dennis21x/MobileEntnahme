@@ -21,8 +21,8 @@ const db = firebase.firestore();
 
 // Globale Variablen
 let materialDatabase = {
-    primary: {}, // Primäre Materialnummern -> {beschreibung, alternativeNr}
-    alternative: {} // Alternative Materialnummern -> primäreNr
+    primary: {}, // Primäre SAP-Nummern -> {beschreibung, alternativeNr}
+    alternative: {} // Alternative SAP-Nummern -> primäreNr
 };
 let normalHistoryData = []; 
 let clarificationCasesData = []; 
@@ -33,6 +33,7 @@ let isInAdminMode = false; // Track admin mode state
 // Barcode Scanner Variablen
 let codeReader = null; // Instanz des ZXing CodeReader
 let currentMaterialInput = null; // Speichert das Input-Feld, das gerade gescannt werden soll
+let localStream = null; // --- NEU: Hält den aktiven Kamera-Stream für den Zoom
 
 // Datum und Uhrzeit aktualisieren
 function updateDateTime() {
@@ -105,20 +106,19 @@ document.addEventListener('DOMContentLoaded', function() {
     // HINZUGEFÜGT: Event-Listener für manuellen Upload
     document.getElementById('materialFile').addEventListener('change', uploadMaterialDatabase);
     
-    // Material-Nummer-Eingabe-Event für automatische Beschreibung und Enter-Taste
+    // SAP-Nr.-Eingabe-Event für automatische Beschreibung und Enter-Taste
     document.querySelectorAll('.material-input').forEach(input => {
         input.addEventListener('blur', function() { checkMaterialNumber(this); });
         input.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
                 checkMaterialNumber(this);
-                const rowNumber = parseInt(this.name.split('_')[1]);
-                document.querySelector(`[name="menge_${rowNumber}"]`).focus();
+                // Der Fokus wird nun durch checkMaterialNumber() zum ME-Feld gesetzt
             }
         });
     });
     
-    // Beschreibungs-Feld-Events
+    // --- ANGEPASST: Beschreibungs-Feld-Events ---
     document.querySelectorAll('.description-field').forEach(input => {
         input.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
@@ -127,8 +127,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.querySelector(`[name="menge_${rowNumber}"]`).focus();
             }
         });
+        
+        // Bei Verlassen des Feldes (blur), wenn Text vorhanden ist, zum ME-Feld springen.
+        input.addEventListener('blur', function() {
+            if (this.value.trim()) {
+                const rowNumber = parseInt(this.name.split('_')[1]);
+                const meInput = document.querySelector(`[name="me_${rowNumber}"]`);
+                meInput.focus();
+                meInput.parentElement.classList.add('show');
+            }
+        });
     });
-    
+    // --- ENDE ANPASSUNG ---
+
     // Mengeneinheit-Dropdown-Funktionalität (per Klick)
     document.querySelectorAll('.me-dropdown-content div').forEach(option => {
         option.addEventListener('click', function() {
@@ -246,7 +257,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         if (!hasAtLeastOneValidRow) {
-            alert('Fehler: Es muss mindestens eine Zeile mit Materialnummer/Beschreibung UND Menge ausgefüllt sein.');
+            alert('Fehler: Es muss mindestens eine Zeile mit SAP-Nr./Beschreibung UND Menge ausgefüllt sein.');
             return;
         }
 
@@ -424,6 +435,7 @@ function setActiveMenuItem(itemId) {
     }
 }
 
+// --- ANGEPASST: checkMaterialNumber ---
 function checkMaterialNumber(inputElement) {
     const rowNumber = inputElement.name.split('_')[1];
     const descriptionField = document.querySelector(`[name="description_${rowNumber}"]`);
@@ -448,11 +460,18 @@ function checkMaterialNumber(inputElement) {
             inputElement.classList.add('error');
             primaryField.value = '';
         }
+        
+        // Springe zum ME-Feld und öffne das Dropdown.
+        const meInput = document.querySelector(`[name="me_${rowNumber}"]`);
+        meInput.focus();
+        meInput.parentElement.classList.add('show');
+
     } else { 
         primaryField.value = ''; 
         descriptionField.value = ''; 
     }
 }
+// --- ENDE ANPASSUNG ---
 
 function loadAllData() {
     // KORRIGIERT: CSV-Datei von GitHub laden mit vollständiger URL
@@ -768,13 +787,13 @@ function exportClarificationCasesToCSV() {
 }
 
 
-// Barcode-Scanner-Funktionen (unverändert, aber hier für Vollständigkeit)
+// --- NEU: Barcode-Scanner-Funktionen mit Zoom ---
 async function openBarcodeScanner(rowNumber) {
     currentMaterialInput = document.querySelector(`[name="material_${rowNumber}"]`);
     const scannerDialog = document.getElementById('barcodeScannerDialog');
     const qrVideo = document.getElementById('qr-video');
     const scannerStatus = document.getElementById('scanner-status');
-    
+
     scannerDialog.classList.remove('hidden');
     scannerStatus.textContent = 'Kamera wird gestartet...';
 
@@ -803,16 +822,37 @@ async function openBarcodeScanner(rowNumber) {
         const rearCamera = videoInputDevices.find(device => /back|environment/i.test(device.label));
         const deviceId = rearCamera ? rearCamera.deviceId : videoInputDevices[0].deviceId;
 
-        scannerStatus.textContent = 'Scannen läuft... Halten Sie den Barcode vor die Kamera.';
+        // Stream manuell abrufen, um Zoom anzuwenden
+        localStream = await navigator.mediaDevices.getUserMedia({
+            video: { deviceId: { exact: deviceId } }
+        });
 
-        codeReader.decodeFromVideoDevice(deviceId, 'qr-video', (result, err) => {
+        const videoTrack = localStream.getVideoTracks()[0];
+        const capabilities = videoTrack.getCapabilities();
+
+        // Zoom-Fähigkeit prüfen und Zoom anwenden
+        if (capabilities.zoom) {
+            try {
+                await videoTrack.applyConstraints({ advanced: [{ zoom: 4.0 }] });
+                console.log("4x Zoom angewendet.");
+            } catch (e) {
+                console.warn("Zoom konnte nicht angewendet werden:", e);
+            }
+        } else {
+            console.warn("Zoom wird von diesem Gerät nicht unterstützt.");
+        }
+        
+        qrVideo.srcObject = localStream;
+        await qrVideo.play(); // Warten, bis das Video abgespielt wird
+
+        scannerStatus.textContent = 'Scannen läuft... Halten Sie den Barcode vor die Kamera.';
+        
+        // decodeFromVideoElement verwenden, da wir den Stream manuell verwalten
+        codeReader.decodeFromVideoElement(qrVideo, (result, err) => {
             if (result) {
                 if (currentMaterialInput) {
                     currentMaterialInput.value = result.text;
                     checkMaterialNumber(currentMaterialInput);
-                    // Nach erfolgreichem Scan zur Menge springen
-                    const rowNum = currentMaterialInput.name.split('_')[1];
-                    document.querySelector(`[name="menge_${rowNum}"]`).focus();
                 }
                 closeBarcodeScanner();
             }
@@ -841,9 +881,12 @@ function closeBarcodeScanner() {
     if (codeReader) {
         codeReader.reset();
     }
+    // Kamera-Stream stoppen, um die Kamera freizugeben
+    if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+    }
     document.getElementById('barcodeScannerDialog').classList.add('hidden');
     currentMaterialInput = null;
+    localStream = null; // Stream-Variable zurücksetzen
 }
-
-// Der Teil mit dem Zoom-Patch wurde entfernt, da er auf vielen Geräten zu Problemen führen kann.
-// ZXing ist in der Regel intelligent genug, um Codes auch ohne digitalen Zoom zu finden.
+// --- ENDE ---
