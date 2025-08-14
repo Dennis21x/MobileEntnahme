@@ -800,7 +800,7 @@ async function openBarcodeScanner(rowNumber) {
             throw new Error('Kamerazugriff wird von diesem Browser nicht unterstützt.');
         }
 
-        // --- NEW: Expanded barcode formats for better detection ---
+        // --- HINWEIS: 'TRY_HARDER' HINZUGEFÜGT ---
         const hints = new Map();
         const formats = [
             ZXing.BarcodeFormat.CODE_128, 
@@ -808,22 +808,23 @@ async function openBarcodeScanner(rowNumber) {
             ZXing.BarcodeFormat.EAN_13, 
             ZXing.BarcodeFormat.EAN_8,
             ZXing.BarcodeFormat.UPC_A,
-            ZXing.BarcodeFormat.ITF, // Interleaved 2 of 5, often used in industry
+            ZXing.BarcodeFormat.ITF,
             ZXing.BarcodeFormat.QR_CODE
         ];
         hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+        // Diese Option veranlasst die Bibliothek, mehr Aufwand in die Erkennung zu stecken.
+        hints.set(ZXing.DecodeHintType.TRY_HARDER, true); 
+        
         codeReader = new ZXing.BrowserMultiFormatReader(hints);
 
         const constraints = { video: { facingMode: 'environment' } };
         localStream = await navigator.mediaDevices.getUserMedia(constraints);
         
-        // --- NEW: Apply 4x zoom if available ---
         const videoTrack = localStream.getVideoTracks()[0];
         const capabilities = videoTrack.getCapabilities();
         if (capabilities.zoom) {
             console.log("Zoom wird unterstützt.");
             try {
-                // Apply a zoom value. Max is capabilities.zoom.max.
                 const zoomValue = Math.min(4, capabilities.zoom.max);
                 await videoTrack.applyConstraints({ advanced: [{ zoom: zoomValue }] });
                 console.log(`${zoomValue}x Zoom angewendet.`);
@@ -836,7 +837,6 @@ async function openBarcodeScanner(rowNumber) {
 
         qrVideo.srcObject = localStream;
         
-        // Use onloadedmetadata to ensure the video dimensions are known before playing
         qrVideo.onloadedmetadata = () => {
             qrVideo.play().catch(e => console.error("Video Playback Error:", e));
             scannerStatus.textContent = 'Scannen läuft...';
@@ -879,7 +879,7 @@ function closeBarcodeScanner() {
         localStream.getTracks().forEach(track => track.stop());
     }
     const qrVideo = document.getElementById('qr-video');
-    qrVideo.srcObject = null; // Release the video source
+    qrVideo.srcObject = null;
     document.getElementById('barcodeScannerDialog').classList.add('hidden');
     currentMaterialInput = null;
     localStream = null; 
