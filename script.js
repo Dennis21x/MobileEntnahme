@@ -785,74 +785,96 @@ function exportClarificationCasesToCSV() {
     exportToCSV(clarificationCasesData, 'klaerungsfaelle.csv');
 }
 
-
-// --- ANPASSUNG: Barcode-Scanner-Funktion überarbeitet ---
+// --- START: MODIFIED BARCODE SCANNER ---
 async function openBarcodeScanner(rowNumber) {
-  currentMaterialInput = document.querySelector(`[name="material_${rowNumber}"]`);
-  const scannerDialog = document.getElementById('barcodeScannerDialog');
-  const qrVideo = document.getElementById('qr-video');
-  const scannerStatus = document.getElementById('scanner-status');
+    currentMaterialInput = document.querySelector(`[name="material_${rowNumber}"]`);
+    const scannerDialog = document.getElementById('barcodeScannerDialog');
+    const qrVideo = document.getElementById('qr-video');
+    const scannerStatus = document.getElementById('scanner-status');
 
-  scannerDialog.classList.remove('hidden');
-  scannerStatus.textContent = 'Kamera wird gestartet...';
+    scannerDialog.classList.remove('hidden');
+    scannerStatus.textContent = 'Kamera wird gestartet...';
 
-  try {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const videoDevices = devices.filter(device => device.kind === 'videoinput');
-    const backCamera = videoDevices.find(device => device.label.toLowerCase().includes('back') || device.label.toLowerCase().includes('rear'));
-
-    const constraints = {
-      video: backCamera ? { deviceId: backCamera.deviceId } : { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }
-    };
-
-    localStream = await navigator.mediaDevices.getUserMedia(constraints);
-    qrVideo.srcObject = localStream;
-    await qrVideo.play();
-
-    scannerStatus.textContent = 'Scannen läuft... Halten Sie den Barcode vor die Kamera.';
-
-    codeReader = new ZXing.BrowserMultiFormatReader();
-
-    let scanAttempts = 0;
-    const maxAttempts = 20;
-
-    const interval = setInterval(async () => {
-      try {
-        const result = await codeReader.decodeOnceFromVideoElement(qrVideo);
-        if (result && result.text) {
-          currentMaterialInput.value = result.text;
-          checkMaterialNumber(currentMaterialInput);
-          closeBarcodeScanner();
-          clearInterval(interval);
+    try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error('Kamerazugriff wird von diesem Browser nicht unterstützt.');
         }
-      } catch (err) {
-        scanAttempts++;
-        if (scanAttempts >= maxAttempts) {
-          scannerStatus.textContent = 'Kein Barcode erkannt. Bitte erneut versuchen.';
-          clearInterval(interval);
-        }
-      }
-    }, 1000);
 
-  } catch (err) {
-    console.error('Fehler beim Initialisieren des Scanners:', err);
-    scannerStatus.textContent = `Fehler: ${err.message}`;
-    alert(err.message);
-    closeBarcodeScanner();
-  }
+        // --- NEW: Add hints for barcode format ---
+        const hints = new Map();
+        // Explicitly state which formats to look for. This improves performance and accuracy.
+        const formats = [
+            ZXing.BarcodeFormat.CODE_128, 
+            ZXing.BarcodeFormat.EAN_13, 
+            ZXing.BarcodeFormat.QR_CODE
+        ];
+        hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+        
+        // --- MODIFIED: Pass hints to the reader ---
+        codeReader = new ZXing.BrowserMultiFormatReader(hints);
+
+        // --- MODIFIED: Prioritize rear camera ('environment') ---
+        const constraints = {
+            video: { 
+                facingMode: 'environment' 
+            }
+        };
+        localStream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        qrVideo.srcObject = localStream;
+        
+        // Ensure video plays before starting to decode
+        qrVideo.oncanplay = (event) => {
+            qrVideo.play();
+            scannerStatus.textContent = 'Scannen läuft... Halten Sie den Barcode vor die Kamera.';
+
+            // Start decoding from the video element
+            codeReader.decodeFromVideoElement(qrVideo, (result, err) => {
+                if (result) {
+                    console.log('Barcode found:', result.text);
+                    if (currentMaterialInput) {
+                        currentMaterialInput.value = result.text;
+                        // Trigger the check automatically after scanning
+                        checkMaterialNumber(currentMaterialInput);
+                    }
+                    closeBarcodeScanner();
+                }
+                if (err && !(err instanceof ZXing.NotFoundException)) {
+                    console.error('Scan-Fehler:', err);
+                    scannerStatus.textContent = 'Fehler beim Scannen.';
+                }
+            });
+        };
+
+    } catch (err) {
+        console.error('Fehler beim Initialisieren des Scanners:', err);
+        let errorMessage = 'Kamerazugriff fehlgeschlagen.';
+        if (err.name === 'NotAllowedError') {
+            errorMessage = 'Kamerazugriff wurde verweigert. Bitte erlauben Sie den Zugriff in Ihren Browsereinstellungen.';
+        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+             errorMessage = 'Keine passende Kamera gefunden. Stellen Sie sicher, dass eine Rückkamera verfügbar ist.';
+        } else {
+            errorMessage = err.message || 'Ein unbekannter Fehler ist aufgetreten.';
+        }
+        
+        scannerStatus.textContent = `Fehler: ${errorMessage}`;
+        // Automatically close the dialog on critical error after a short delay
+        setTimeout(() => closeBarcodeScanner(), 3000);
+    }
 }
-
 
 function closeBarcodeScanner() {
     if (codeReader) {
-        codeReader.reset();
+        // Resets the scanner, stops decoding, and releases camera stream
+        codeReader.reset(); 
     }
-    // Kamera-Stream stoppen, um die Kamera freizugeben
+    // Stop all tracks in the local stream to turn off the camera light
     if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
     }
     document.getElementById('barcodeScannerDialog').classList.add('hidden');
     currentMaterialInput = null;
-    localStream = null; // Stream-Variable zurücksetzen
+    localStream = null; 
+    codeReader = null;
 }
-// --- ENDE ANPASSUNG ---
+// --- END: MODIFIED BARCODE SCANNER ---
