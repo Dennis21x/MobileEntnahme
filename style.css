@@ -4,6 +4,7 @@ body {
 }
 .terminal-container {
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+
     background: linear-gradient(145deg, #2c3e50, #34495e);
 }
 .terminal-header {
@@ -251,3 +252,4 @@ body {
     height: 100%;
 }
 /* --- ENDE ANPASSUNG --- */
+
