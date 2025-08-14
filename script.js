@@ -778,7 +778,7 @@ function exportToCSV(data, filename) {
 }
 
 function exportNormalHistoryToCSV() {
-    exportToCSV(normalHistoryData, 'entnahme_verlauf.csv');
+    exportToCSV(normalHistoryAta, 'entnahme_verlauf.csv');
 }
 
 function exportClarificationCasesToCSV() {
@@ -786,34 +786,27 @@ function exportClarificationCasesToCSV() {
 }
 
 
-// --- GRUNDLEGENDE ÜBERARBEITUNG: Barcode-Scanner-Funktionen ---
+// --- KORRIGIERTE BARCODE-SCANNER FUNKTIONEN ---
 
 /**
  * Öffnet den Barcode-Scanner-Dialog und startet die Kamera.
- * Diese Funktion ist jetzt robuster für mobile Geräte, insbesondere iOS.
  * @param {number} rowNumber - Die Zeilennummer, für die gescannt wird.
  */
 async function openBarcodeScanner(rowNumber) {
-    // Referenz auf das Eingabefeld setzen
     currentMaterialInput = document.querySelector(`[name="material_${rowNumber}"]`);
     
-    // UI-Elemente holen
     const scannerDialog = document.getElementById('barcodeScannerDialog');
     const videoElement = document.getElementById('qr-video');
     const scannerStatus = document.getElementById('scanner-status');
 
-    // Dialog anzeigen und Status setzen
     scannerDialog.classList.remove('hidden');
     scannerStatus.textContent = 'Kamera wird angefordert...';
 
     try {
-        // Sicherstellen, dass der Browser die MediaDevices API unterstützt
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            throw new Error('Dein Browser unterstützt den Kamerazugriff nicht. Bitte nutze einen modernen Browser wie Safari, Chrome oder Firefox.');
+            throw new Error('Dein Browser unterstützt den Kamerazugriff nicht.');
         }
 
-        // HINTS: Wir sagen ZXing, welche Formate es suchen soll. Das ist VIEL schneller.
-        // CODE_128, EAN_13, und QR_CODE sind die häufigsten.
         const hints = new Map();
         const formats = [
             ZXing.BarcodeFormat.CODE_128,
@@ -823,53 +816,44 @@ async function openBarcodeScanner(rowNumber) {
             ZXing.BarcodeFormat.DATA_MATRIX
         ];
         hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
-
-        // Initialisiere den CodeReader mit den Hints
         zxingCodeReader = new ZXing.BrowserMultiFormatReader(hints);
 
-        // ANFORDERUNG DER RÜCKKAMERA: Wir fordern explizit die 'environment' (Rück-) Kamera an.
-        // 'audio: false' ist wichtig, um keine Mikrofon-Berechtigung anzufordern.
         const constraints = {
-            video: {
-                facingMode: 'environment'
-            },
+            video: { facingMode: 'environment' },
             audio: false
         };
 
-        // Starte das Video von der ausgewählten Kamera. 'decodeFromConstraints' ist oft robuster.
-        // Es gibt den Stream zurück, den wir zum Stoppen brauchen.
-        const result = await zxingCodeReader.decodeFromConstraints(constraints, videoElement, (result, error) => {
-            // Dieser Callback wird bei JEDEM Frame aufgerufen.
+        // SCHRITT 1: Stream holen und in der globalen Variable speichern
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        videoInputStream = stream;
+
+        // SCHRITT 2: Stream dem Video-Element zuweisen und abspielen
+        videoElement.srcObject = stream;
+        await videoElement.play();
+
+        scannerStatus.textContent = 'Bereit. Halte den Barcode vor die Kamera.';
+
+        // SCHRITT 3: ZXing anweisen, vom Video-ELEMENT zu dekodieren
+        zxingCodeReader.decodeFromVideoElement(videoElement, (result, error) => {
             if (result) {
-                // ERFOLG! Ein Barcode wurde gefunden.
                 console.log('Barcode gefunden!', result);
                 if (currentMaterialInput) {
                     currentMaterialInput.value = result.getText();
-                    // Führe die Logik aus, um die Beschreibung zu füllen etc.
                     checkMaterialNumber(currentMaterialInput); 
                 }
-                // Schließe den Scanner nach erfolgreicher Erkennung
                 closeBarcodeScanner();
             }
 
-            // Wir ignorieren NotFoundException, da sie bei jedem Frame ohne Barcode auftritt.
             if (error && !(error instanceof ZXing.NotFoundException)) {
                 console.error('Scan-Fehler:', error);
                 scannerStatus.textContent = `Ein Fehler ist aufgetreten: ${error.message}`;
             }
         });
 
-        // Speichere den Stream, damit wir ihn später stoppen können.
-        videoInputStream = result.stream;
-
-        // Update der Statusmeldung, wenn die Kamera läuft.
-        scannerStatus.textContent = 'Bereit. Halte den Barcode vor die Kamera.';
-
     } catch (err) {
         console.error('Fehler beim Initialisieren des Scanners:', err);
         let errorMessage = 'Der Kamerazugriff ist fehlgeschlagen.';
 
-        // Gib dem Benutzer spezifisches Feedback
         if (err.name === 'NotAllowedError') {
             errorMessage = 'Kamerazugriff verweigert. Bitte erlaube den Zugriff in den Browser- oder Systemeinstellungen und lade die Seite neu.';
         } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
@@ -879,8 +863,8 @@ async function openBarcodeScanner(rowNumber) {
         }
         
         scannerStatus.textContent = `Fehler: ${errorMessage}`;
-        alert(errorMessage); // Gib eine klare Alert-Meldung aus.
-        closeBarcodeScanner(); // Schließe den Dialog bei einem Fehler.
+        alert(errorMessage);
+        closeBarcodeScanner();
     }
 }
 
@@ -888,6 +872,11 @@ async function openBarcodeScanner(rowNumber) {
  * Stoppt den Scanner, gibt die Kamera frei und schließt den Dialog.
  */
 function closeBarcodeScanner() {
+    // Video-Element holen und anhalten
+    const videoElement = document.getElementById('qr-video');
+    videoElement.pause();
+    videoElement.srcObject = null;
+
     // Stoppe alle Video-Tracks des aktiven Streams, um die Kamera freizugeben.
     if (videoInputStream) {
         videoInputStream.getTracks().forEach(track => {
@@ -906,4 +895,4 @@ function closeBarcodeScanner() {
     document.getElementById('barcodeScannerDialog').classList.add('hidden');
     currentMaterialInput = null;
 }
-// --- ENDE ÜBERARBEITUNG ---
+// --- ENDE KORREKTUR ---
