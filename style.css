@@ -236,3 +236,18 @@ body {
     display: none; /* Canvas is not needed for just scanning */
 }
 /* --- END MODIFICATION --- */
+
+/* --- ANPASSUNG FÜR QUAGGAJS SCANNER --- */
+#barcodeScannerDialog #scanner-container.viewport {
+    position: relative;
+}
+
+#barcodeScannerDialog #scanner-container.viewport canvas, 
+#barcodeScannerDialog #scanner-container.viewport video {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+/* --- ENDE ANPASSUNG --- */
