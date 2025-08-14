@@ -30,10 +30,9 @@ const ADMIN_PIN = "100400#x"; // Admin PIN-Code
 let pendingSubmitData = null; // Für die Warndialoge
 let isInAdminMode = false; // Track admin mode state
 
-// Barcode Scanner Variablen
-let codeReader = null; // Instanz des ZXing CodeReader
+// NEU: Nur noch die Variable für das Input-Feld, die QuaggaJS-Instanz wird lokal verwaltet.
 let currentMaterialInput = null; // Speichert das Input-Feld, das gerade gescannt werden soll
-let localStream = null; // Hält den aktiven Kamera-Stream
+
 // Datum und Uhrzeit aktualisieren
 function updateDateTime() {
     const now = new Date();
@@ -690,7 +689,7 @@ function updateClarificationCasesTable() {
                 <td class="px-4 py-3 align-top" data-label="Aktionen">
                      <div class="flex flex-col sm:flex-row gap-2">
                         <button class="px-3 py-1 bg-yellow-500 text-white text-xs rounded hover:bg-yellow-600" onclick="editEntry('${entry.id}', 'clarification')">Bearbeiten</button>
-                        <button class="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700" onclick="deleteEntry('${entry.id}', 'clarification')">Löschen</button>
+                        <button class="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700" onclick="deleteEntry('${id}', 'clarification')">Löschen</button>
                     </div>
                 </td>
             `;
@@ -785,104 +784,72 @@ function exportClarificationCasesToCSV() {
     exportToCSV(clarificationCasesData, 'klaerungsfaelle.csv');
 }
 
-// --- FINAL VERSION: BARCODE SCANNER ---
-async function openBarcodeScanner(rowNumber) {
+
+// --- START: NEUE BARCODE-SCANNER-FUNKTIONEN MIT QUAGGAJS ---
+
+function openBarcodeScanner(rowNumber) {
     currentMaterialInput = document.querySelector(`[name="material_${rowNumber}"]`);
     const scannerDialog = document.getElementById('barcodeScannerDialog');
-    const qrVideo = document.getElementById('qr-video');
+    const scannerContainer = document.getElementById('scanner-container');
+    // Das Video-Element wird von QuaggaJS nicht direkt benötigt, aber der Container schon.
+    // Wir stellen sicher, dass der Container leer ist, bevor Quagga ihn verwendet.
+    scannerContainer.innerHTML = ''; 
+    // Wir fügen die CSS-Klasse 'viewport' hinzu, damit unsere neuen Styles greifen.
+    scannerContainer.className = 'w-full h-64 md:h-80 relative bg-gray-800 rounded-md overflow-hidden viewport';
+
     const scannerStatus = document.getElementById('scanner-status');
 
     scannerDialog.classList.remove('hidden');
     scannerStatus.textContent = 'Kamera wird gestartet...';
-
-    try {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            throw new Error('Kamerazugriff wird von diesem Browser nicht unterstützt.');
+    
+    Quagga.init({
+        inputStream : {
+            name : "Live",
+            type : "LiveStream",
+            target: scannerContainer, // Quagga rendert direkt in diesen Container
+            constraints: {
+                width: 640,
+                height: 480,
+                facingMode: "environment" // Bevorzugt die Rückkamera
+            },
+        },
+        decoder : {
+            // Wir spezifizieren hier die Barcode-Typen, nach denen gesucht werden soll.
+            // 'code_128_reader' ist sehr verbreitet für interne Logistik.
+            readers : ["code_128_reader", "ean_reader", "upc_reader"]
+        },
+        locate: true, // versucht, den Barcode im Bild zu lokalisieren
+        patchSize: "medium", // kann die Leistung beeinflussen, "medium" ist ein guter Start
+    }, function(err) {
+        if (err) {
+            console.error("Fehler bei der Initialisierung von Quagga:", err);
+            scannerStatus.textContent = `Fehler: ${err.name}. Kamerazugriff verweigert oder Kamera nicht gefunden.`;
+            alert(`Kamerazugriff fehlgeschlagen: ${err.message}`);
+            closeBarcodeScanner();
+            return;
         }
+        console.log("Quagga-Initialisierung erfolgreich.");
+        Quagga.start();
+        scannerStatus.textContent = 'Scannen läuft... Halten Sie den Barcode vor die Kamera.';
+    });
 
-        // --- HINWEIS: 'TRY_HARDER' HINZUGEFÜGT ---
-        const hints = new Map();
-        const formats = [
-            ZXing.BarcodeFormat.CODE_128, 
-            ZXing.BarcodeFormat.CODE_39,
-            ZXing.BarcodeFormat.EAN_13, 
-            ZXing.BarcodeFormat.EAN_8,
-            ZXing.BarcodeFormat.UPC_A,
-            ZXing.BarcodeFormat.ITF,
-            ZXing.BarcodeFormat.QR_CODE
-        ];
-        hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
-        // Diese Option veranlasst die Bibliothek, mehr Aufwand in die Erkennung zu stecken.
-        hints.set(ZXing.DecodeHintType.TRY_HARDER, true); 
-        
-        codeReader = new ZXing.BrowserMultiFormatReader(hints);
-
-        const constraints = { video: { facingMode: 'environment' } };
-        localStream = await navigator.mediaDevices.getUserMedia(constraints);
-        
-        const videoTrack = localStream.getVideoTracks()[0];
-        const capabilities = videoTrack.getCapabilities();
-        if (capabilities.zoom) {
-            console.log("Zoom wird unterstützt.");
-            try {
-                const zoomValue = Math.min(4, capabilities.zoom.max);
-                await videoTrack.applyConstraints({ advanced: [{ zoom: zoomValue }] });
-                console.log(`${zoomValue}x Zoom angewendet.`);
-            } catch (e) {
-                console.warn("Zoom konnte nicht angewendet werden:", e);
+    // Dieser Listener wird aufgerufen, sobald ein Barcode erfolgreich erkannt wurde.
+    Quagga.onDetected(function(result) {
+        if (result && result.codeResult) {
+            console.log("Barcode erkannt:", result.codeResult.code);
+            if (currentMaterialInput) {
+                currentMaterialInput.value = result.codeResult.code;
+                checkMaterialNumber(currentMaterialInput);
             }
-        } else {
-            console.warn("Zoom wird von diesem Gerät nicht unterstützt.");
+            closeBarcodeScanner();
         }
-
-        qrVideo.srcObject = localStream;
-        
-        qrVideo.onloadedmetadata = () => {
-            qrVideo.play().catch(e => console.error("Video Playback Error:", e));
-            scannerStatus.textContent = 'Scannen läuft...';
-
-            codeReader.decodeFromVideoElement(qrVideo, (result, err) => {
-                if (result) {
-                    console.log('Barcode gefunden:', result.text);
-                    if (currentMaterialInput) {
-                        currentMaterialInput.value = result.text;
-                        checkMaterialNumber(currentMaterialInput);
-                    }
-                    closeBarcodeScanner();
-                }
-                if (err && !(err instanceof ZXing.NotFoundException)) {
-                    console.error('Scan-Fehler:', err);
-                }
-            });
-        };
-
-    } catch (err) {
-        console.error('Fehler beim Initialisieren des Scanners:', err);
-        let errorMessage = 'Kamerazugriff fehlgeschlagen.';
-        if (err.name === 'NotAllowedError') {
-            errorMessage = 'Kamerazugriff wurde verweigert. Bitte in den Browsereinstellungen erlauben.';
-        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-             errorMessage = 'Keine passende Rückkamera gefunden.';
-        } else {
-            errorMessage = err.message || 'Ein unbekannter Fehler ist aufgetreten.';
-        }
-        scannerStatus.textContent = `Fehler: ${errorMessage}`;
-        setTimeout(() => closeBarcodeScanner(), 4000);
-    }
+    });
 }
 
 function closeBarcodeScanner() {
-    if (codeReader) {
-        codeReader.reset();
-    }
-    if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-    }
-    const qrVideo = document.getElementById('qr-video');
-    qrVideo.srcObject = null;
+    // Stoppt den Kamera-Stream und entfernt alle Listener
+    Quagga.stop();
     document.getElementById('barcodeScannerDialog').classList.add('hidden');
     currentMaterialInput = null;
-    localStream = null; 
-    codeReader = null;
 }
-// --- END: FINAL VERSION ---
+// --- ENDE: NEUE BARCODE-SCANNER-FUNKTIONEN ---
