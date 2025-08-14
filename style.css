@@ -4,7 +4,6 @@ body {
 }
 .terminal-container {
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-
     background: linear-gradient(145deg, #2c3e50, #34495e);
 }
 .terminal-header {
@@ -209,47 +208,54 @@ body {
         right: 0; /* Align dropdown to the right */
     }
 }
-
-/* --- MODIFIED: Barcode Scanner Modal Styles --- */
+/* Stil für das Barcode-Scanner-Modal */
 #barcodeScannerDialog video {
     width: 100%;
     height: 100%;
-    object-fit: cover; /* Ensures video covers the container without distortion */
+    /* ANPASSUNG: Stellt sicher, dass das Video den Bereich füllt, ohne das Seitenverhältnis zu verzerren */
+    object-fit: cover; 
     display: block;
     background-color: black;
 }
+
 #barcodeScannerDialog #scanner-container {
     position: relative;
-    overflow: hidden; 
-    border-radius: 0.375rem; /* Tailwind's rounded-md */
-    background-color: #1f2937; /* Tailwind's gray-800 */
-    /* Define a size for the container */
-    width: 100%;
-    /* Use padding-top trick for aspect ratio (e.g., 75% for 4:3) or a fixed height */
-    height: 20rem; /* md:h-80 from your HTML */
-}
-@media (max-width: 768px) {
-    #barcodeScannerDialog #scanner-container {
-        height: 16rem; /* h-64 from your HTML */
-    }
-}
-#barcodeScannerDialog #qr-canvas {
-    display: none; /* Canvas is not needed for just scanning */
-}
-/* --- END MODIFICATION --- */
-
-/* --- ANPASSUNG FÜR QUAGGAJS SCANNER --- */
-#barcodeScannerDialog #scanner-container.viewport {
-    position: relative;
+    overflow: hidden; /* Sicherstellen, dass nichts überläuft */
+    /* Hinzugefügt für eine klarere Kante */
+    border: 1px solid #ddd;
 }
 
-#barcodeScannerDialog #scanner-container.viewport canvas, 
-#barcodeScannerDialog #scanner-container.viewport video {
+/* NEU: Stile für das Scan-Overlay und die Laserlinie */
+.scanner-overlay {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
+    box-shadow: inset 0 0 0 500px rgba(0, 0, 0, 0.4); /* Verdunkelt den Bereich außerhalb des Rahmens */
+    border: 40px solid transparent;
+    border-image: linear-gradient(to right, rgba(255, 255, 255, 0.3) 1px, transparent 1px) 100% 1;
 }
-/* --- ENDE ANPASSUNG --- */
 
+.laser-line {
+    position: absolute;
+    top: 50%;
+    left: 10%;
+    right: 10%;
+    height: 2px;
+    background-color: #ff3b30; /* Rote Laserfarbe */
+    box-shadow: 0 0 5px #ff3b30, 0 0 10px #ff3b30;
+    transform: translateY(-50%);
+    animation: scan-animation 2s infinite linear;
+}
+
+@keyframes scan-animation {
+    0% { top: 10%; }
+    50% { top: 90%; }
+    100% { top: 10%; }
+}
+
+
+#barcodeScannerDialog #qr-canvas {
+    display: none; /* Canvas wird normalerweise von ZXing für das Zeichnen von Erkennungsrahmen verwendet */
+}
