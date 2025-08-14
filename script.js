@@ -34,7 +34,6 @@ let isInAdminMode = false; // Track admin mode state
 let codeReader = null; // Instanz des ZXing CodeReader
 let currentMaterialInput = null; // Speichert das Input-Feld, das gerade gescannt werden soll
 let localStream = null; // Hält den aktiven Kamera-Stream
-
 // Datum und Uhrzeit aktualisieren
 function updateDateTime() {
     const now = new Date();
@@ -435,6 +434,7 @@ function setActiveMenuItem(itemId) {
     }
 }
 
+// --- ANGEPASST: checkMaterialNumber ---
 function checkMaterialNumber(inputElement) {
     const rowNumber = inputElement.name.split('_')[1];
     const descriptionField = document.querySelector(`[name="description_${rowNumber}"]`);
@@ -460,6 +460,7 @@ function checkMaterialNumber(inputElement) {
             primaryField.value = '';
         }
         
+        // Springe zum ME-Feld und öffne das Dropdown.
         const meInput = document.querySelector(`[name="me_${rowNumber}"]`);
         meInput.focus();
         meInput.parentElement.classList.add('show');
@@ -469,8 +470,10 @@ function checkMaterialNumber(inputElement) {
         descriptionField.value = ''; 
     }
 }
+// --- ENDE ANPASSUNG ---
 
 function loadAllData() {
+    // KORRIGIERT: CSV-Datei von GitHub laden mit vollständiger URL
     const csvUrl = 'https://raw.githubusercontent.com/Dennis21x/lager-terminal-data/main/Terminaldaten.csv';
     document.getElementById('databaseStatus').textContent = 'Status: Lade Materialdatenbank von GitHub...';
     
@@ -486,7 +489,7 @@ function loadAllData() {
                 delimiter: ';', 
                 header: false, 
                 skipEmptyLines: true,
-                complete: processMaterialData
+                complete: processMaterialData // Verwende die ausgelagerte Funktion
             });
         })
         .catch(error => {
@@ -495,15 +498,21 @@ function loadAllData() {
             alert("Die Materialdatenbank konnte nicht automatisch geladen werden. Bitte laden Sie die CSV-Datei manuell im Admin-Bereich hoch.");
         });
 
+    // Echtzeit-Listener für normale Entnahmen
     db.collection("entnahmen").orderBy("timestamp", "desc").onSnapshot(snapshot => {
         normalHistoryData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         updateNormalHistoryTable();
-    }, err => console.error("Fehler beim Laden des normalen Verlaufs: ", err));
+    }, err => {
+        console.error("Fehler beim Laden des normalen Verlaufs: ", err);
+    });
 
+    // Echtzeit-Listener für Klärungsfälle
     db.collection("klaerungsfaelle").orderBy("timestamp", "desc").onSnapshot(snapshot => {
         clarificationCasesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         updateClarificationCasesTable();
-    }, err => console.error("Fehler beim Laden der Klärungsfälle: ", err));
+    }, err => {
+        console.error("Fehler beim Laden der Klärungsfälle: ", err);
+    });
 }
 
 function validateForm() {
@@ -776,90 +785,74 @@ function exportClarificationCasesToCSV() {
     exportToCSV(clarificationCasesData, 'klaerungsfaelle.csv');
 }
 
-// --- ANPASSUNG: Komplette Überarbeitung der Barcode-Scanner-Logik für maximale Stabilität ---
-async function openBarcodeScanner(rowNumber) {
-    currentMaterialInput = document.querySelector(`[name="material_${rowNumber}"]`);
-    const scannerDialog = document.getElementById('barcodeScannerDialog');
-    const qrVideo = document.getElementById('qr-video');
-    const scannerStatus = document.getElementById('scanner-status');
 
-    scannerDialog.classList.remove('hidden');
-    scannerStatus.textContent = 'Kamera wird gestartet...';
-    
-    // Wir verwenden den BrowserMultiFormatReader, da dieser für verschiedene Barcode-Typen (inkl. CODE 128) geeignet ist.
+// --- ANPASSUNG: Barcode-Scanner-Funktion überarbeitet ---
+async function openBarcodeScanner(rowNumber) {
+  currentMaterialInput = document.querySelector(`[name="material_${rowNumber}"]`);
+  const scannerDialog = document.getElementById('barcodeScannerDialog');
+  const qrVideo = document.getElementById('qr-video');
+  const scannerStatus = document.getElementById('scanner-status');
+
+  scannerDialog.classList.remove('hidden');
+  scannerStatus.textContent = 'Kamera wird gestartet...';
+
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter(device => device.kind === 'videoinput');
+    const backCamera = videoDevices.find(device => device.label.toLowerCase().includes('back') || device.label.toLowerCase().includes('rear'));
+
+    const constraints = {
+      video: backCamera ? { deviceId: backCamera.deviceId } : { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }
+    };
+
+    localStream = await navigator.mediaDevices.getUserMedia(constraints);
+    qrVideo.srcObject = localStream;
+    await qrVideo.play();
+
+    scannerStatus.textContent = 'Scannen läuft... Halten Sie den Barcode vor die Kamera.';
+
     codeReader = new ZXing.BrowserMultiFormatReader();
 
-    try {
-        const videoInputDevices = await codeReader.listVideoInputDevices();
-        if (videoInputDevices.length === 0) {
-            throw new Error('Keine Kamera gefunden.');
+    let scanAttempts = 0;
+    const maxAttempts = 20;
+
+    const interval = setInterval(async () => {
+      try {
+        const result = await codeReader.decodeOnceFromVideoElement(qrVideo);
+        if (result && result.text) {
+          currentMaterialInput.value = result.text;
+          checkMaterialNumber(currentMaterialInput);
+          closeBarcodeScanner();
+          clearInterval(interval);
         }
-
-        // Bevorzugt die rückseitige Kamera. 'environment' ist der Standardbegriff dafür.
-        const rearCamera = videoInputDevices.find(device => /back|environment/i.test(device.label));
-        const selectedDeviceId = rearCamera ? rearCamera.deviceId : videoInputDevices[0].deviceId;
-        
-        // Um den Zoom anwenden zu können, müssen wir den Stream manuell abrufen.
-        localStream = await navigator.mediaDevices.getUserMedia({
-            video: {
-                deviceId: { exact: selectedDeviceId },
-                width: { ideal: 1920 }, // Höhere Auflösung für bessere Erkennung
-                height: { ideal: 1080 }
-            }
-        });
-
-        // Wende den Zoom an, falls vom Gerät unterstützt.
-        const videoTrack = localStream.getVideoTracks()[0];
-        const capabilities = videoTrack.getCapabilities();
-        if (capabilities.zoom) {
-            try {
-                await videoTrack.applyConstraints({ advanced: [{ zoom: 4.0 }] });
-                console.log("4x Zoom auf Rückkamera angewendet.");
-            } catch (e) {
-                console.warn("Zoom konnte nicht angewendet werden:", e);
-            }
+      } catch (err) {
+        scanAttempts++;
+        if (scanAttempts >= maxAttempts) {
+          scannerStatus.textContent = 'Kein Barcode erkannt. Bitte erneut versuchen.';
+          clearInterval(interval);
         }
+      }
+    }, 1000);
 
-        qrVideo.srcObject = localStream;
-        
-        // Warten, bis das Video-Element bereit ist, um Fehler zu vermeiden.
-        qrVideo.onloadedmetadata = () => {
-            qrVideo.play();
-            scannerStatus.textContent = 'Scannen läuft...';
-            
-            // Starte den Scan-Vorgang mit einer stabilen Methode.
-            codeReader.decodeFromVideoElement(qrVideo, (result, err) => {
-                if (result) {
-                    console.log("Barcode gefunden:", result.text);
-                    if (currentMaterialInput) {
-                        currentMaterialInput.value = result.text;
-                        checkMaterialNumber(currentMaterialInput);
-                    }
-                    closeBarcodeScanner(); // Schließt den Scanner und gibt die Kamera frei.
-                }
-                if (err && !(err instanceof ZXing.NotFoundException)) {
-                    console.error('Scan-Fehler:', err);
-                    scannerStatus.textContent = 'Fehler beim Scannen.';
-                }
-            });
-        };
-
-    } catch (err) {
-        console.error('Fehler beim Initialisieren des Scanners:', err);
-        scannerStatus.textContent = `Fehler: ${err.message}. Bitte Berechtigungen prüfen.`;
-        // Schließe den Dialog bei einem Fehler nach kurzer Zeit.
-        setTimeout(closeBarcodeScanner, 3000);
-    }
+  } catch (err) {
+    console.error('Fehler beim Initialisieren des Scanners:', err);
+    scannerStatus.textContent = `Fehler: ${err.message}`;
+    alert(err.message);
+    closeBarcodeScanner();
+  }
 }
+
 
 function closeBarcodeScanner() {
     if (codeReader) {
-        codeReader.reset(); // Stoppt den Scan-Prozess der Bibliothek.
+        codeReader.reset();
     }
+    // Kamera-Stream stoppen, um die Kamera freizugeben
     if (localStream) {
-        localStream.getTracks().forEach(track => track.stop()); // Gibt die Kamera hardwareseitig frei.
+        localStream.getTracks().forEach(track => track.stop());
     }
     document.getElementById('barcodeScannerDialog').classList.add('hidden');
     currentMaterialInput = null;
-    localStream = null;
+    localStream = null; // Stream-Variable zurücksetzen
 }
+// --- ENDE ANPASSUNG ---
