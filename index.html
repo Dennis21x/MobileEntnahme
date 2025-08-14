@@ -392,7 +392,7 @@
         <h3 class="text-xl font-bold text-gray-800 mb-4">Barcode scannen</h3>
         <button class="absolute top-3 right-3 text-gray-600 hover:text-gray-900 text-2xl" id="closeScannerDialog">×</button>
         <div class="w-full h-64 md:h-80 relative bg-gray-800 rounded-md overflow-hidden" id="scanner-container">
-            <video class="w-full h-full object-cover" id="qr-video"></video>
+            <video class="w-full h-full object-cover" id="qr-video" playsinline webkit-playsinline></video>
             <canvas class="absolute inset-0 w-full h-full" id="qr-canvas" style="display: none;"></canvas>
         </div>
         <p class="mt-4 text-gray-700 text-center" id="scanner-status">Kamera wird gestartet...</p>
