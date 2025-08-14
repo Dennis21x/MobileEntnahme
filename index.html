@@ -8,6 +8,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet"/>
+    <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.19.1/umd/index.min.js"></script>
 
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
@@ -386,17 +387,22 @@
         <div class="flex justify-end"><button class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 hidden" id="closeSapDialog">Schließen</button></div>
     </div>
 </div>
+
 <div class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center hidden z-50" id="barcodeScannerDialog">
     <div class="bg-white rounded-lg p-4 max-w-lg w-full mx-4 relative">
         <h3 class="text-xl font-bold text-gray-800 mb-4">Barcode scannen</h3>
         <button class="absolute top-3 right-3 text-gray-600 hover:text-gray-900 text-2xl" id="closeScannerDialog">×</button>
         <div class="w-full h-64 md:h-80 relative bg-gray-800 rounded-md overflow-hidden" id="scanner-container">
-            <video class="w-full h-full object-cover" id="qr-video" playsinline webkit-playsinline></video>
+            <video id="qr-video" playsinline class="w-full h-full"></video>
+            <div class="scanner-overlay">
+                <div class="laser-line"></div>
+            </div>
             <canvas class="absolute inset-0 w-full h-full" id="qr-canvas" style="display: none;"></canvas>
         </div>
         <p class="mt-4 text-gray-700 text-center" id="scanner-status">Kamera wird gestartet...</p>
     </div>
 </div>
+
 
 <script src="script.js"></script>
 
