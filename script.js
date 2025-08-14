@@ -676,31 +676,36 @@ function exportClarificationCasesToCSV() {
 async function openBarcodeScanner(rowNumber) {
     currentMaterialInput = document.querySelector(`[name="material_${rowNumber}"]`);
     const scannerDialog = document.getElementById('barcodeScannerDialog');
-    const videoEl = document.getElementById('qr-video'); // Wir verwenden das vorhandene Video-Element
+    const videoEl = document.getElementById('qr-video');
     const scannerStatus = document.getElementById('scanner-status');
 
-    // WICHTIG: Prüfen, ob der Browser die API überhaupt unterstützt.
+    // --- START: ERWEITERTE DIAGNOSE ---
+    console.log("Starte Barcode-Scanner...");
+    console.log("Ist der Kontext sicher (HTTPS)?", window.isSecureContext);
+    console.log("Ist 'BarcodeDetector' im window-Objekt vorhanden?", 'BarcodeDetector' in window);
+    // --- ENDE: ERWEITERTE DIAGNOSE ---
+
     if (!('BarcodeDetector' in window)) {
-        alert('Dieser Browser unterstützt die native Barcode-Erkennung nicht. Bitte verwenden Sie einen aktuellen Browser wie Chrome auf Android oder Safari auf iOS 15.4+.');
+        alert('Diagnose: BarcodeDetector API nicht im "window" Objekt gefunden. Mögliche Ursachen: Feature Flag in Safari deaktiviert, oder die Seite wird nicht als sicher eingestuft (trotz Hosting).');
         scannerStatus.textContent = 'Funktion nicht unterstützt.';
         return;
     }
 
     scannerDialog.classList.remove('hidden');
     scannerStatus.textContent = 'Kamera wird gestartet...';
-
-    // Formate, die wir erkennen wollen. code_128 ist sehr gängig.
-    const formats = await BarcodeDetector.getSupportedFormats();
-    if (formats.includes('code_128')) {
-       barcodeDetector = new BarcodeDetector({ formats: ['code_128', 'ean_13'] });
-    } else {
-       alert("Benötigte Barcode-Formate werden nicht unterstützt.");
-       closeBarcodeScanner();
-       return;
-    }
     
     try {
-        // Kamera-Stream anfordern
+        const formats = await BarcodeDetector.getSupportedFormats();
+        console.log("Unterstützte Formate:", formats); // Zeigt uns, was der Browser kann
+
+        if (!formats.includes('code_128')) {
+            alert("Fehler: Das benötigte Barcode-Format (code_128) wird von Ihrem Browser nicht unterstützt.");
+            closeBarcodeScanner();
+            return;
+        }
+
+        barcodeDetector = new BarcodeDetector({ formats: ['code_128', 'ean_13'] });
+    
         localStream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: 'environment' },
             audio: false
@@ -710,8 +715,8 @@ async function openBarcodeScanner(rowNumber) {
         await videoEl.play();
         scannerStatus.textContent = 'Scannen läuft...';
         
-        // Starte eine Schleife, die kontinuierlich nach Barcodes sucht
         detectionInterval = setInterval(async () => {
+            if (!videoEl.readyState >= 2) return;
             try {
                 const barcodes = await barcodeDetector.detect(videoEl);
                 if (barcodes.length > 0) {
@@ -722,20 +727,16 @@ async function openBarcodeScanner(rowNumber) {
                         currentMaterialInput.value = detectedCode;
                         checkMaterialNumber(currentMaterialInput);
                     }
-                    closeBarcodeScanner(); // Schließe den Scanner bei Erfolg
+                    closeBarcodeScanner();
                 }
             } catch (detectError) {
-                // Fehler während der Erkennung ignorieren, damit die Schleife weiterläuft
-                // console.error("Erkennungsfehler:", detectError);
+                // Fehler ignorieren
             }
-        }, 100); // Prüfe alle 100ms
+        }, 100);
         
     } catch (err) {
-        console.error('Fehler beim Kamerazugriff:', err);
-        let errorMsg = `Kamerazugriff fehlgeschlagen: ${err.name}.`;
-        if (err.name === "NotAllowedError") {
-            errorMsg = "Kamerazugriff wurde verweigert. Bitte erlauben Sie den Zugriff in den Einstellungen.";
-        }
+        console.error('Ein Fehler ist aufgetreten:', err);
+        let errorMsg = `Fehler: ${err.name}.`;
         scannerStatus.textContent = errorMsg;
         alert(errorMsg);
         closeBarcodeScanner();
@@ -762,3 +763,4 @@ function closeBarcodeScanner() {
     barcodeDetector = null;
 }
 // --- ENDE: NEUE BARCODE-SCANNER-FUNKTIONEN ---
+
