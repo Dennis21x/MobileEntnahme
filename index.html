@@ -1,410 +1,1573 @@
 <!DOCTYPE html>
+
 <html lang="de">
 <head>
-    <meta charset="utf-8"/>
-    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-    <title>Lager-Entnahme Terminal</title>
-    
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet"/>
-    <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.19.1/umd/index.min.js"></script>
-
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-storage-compat.js"></script>
-    
-    <link rel="stylesheet" href="style.css">
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Lager-Entnahme Terminal</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.19.1/umd/index.min.js"></script>
+<style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f4f8;
+        }
+        .terminal-container {
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            background: linear-gradient(145deg, #2c3e50, #34495e);
+        }
+        .terminal-header {
+            background: linear-gradient(90deg, #1a2a3a, #2c3e50);
+        }
+        .btn-primary {
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+        .material-row:nth-child(odd) {
+            background-color: rgba(0, 0, 0, 0.03);
+        }
+        .description-field {
+            background-color: #f9f9f9;
+        }
+        .description-field.auto-filled {
+            background-color: #e8f4ff;
+        }
+        .description-field.error, .me-input.error {
+            background-color: #ffe8e8;
+            color: rgb(235, 0, 0);
+        }
+        /* Admin-Bereich, Verlauf und Klärungsfälle initial ausgeblendet */
+        .admin-panel, .history-panel, .clarification-cases-panel {
+            display: none;
+        }
+        /* Menüleiste */
+        .menu-bar {
+            background: linear-gradient(90deg, #1a2a3a, #2c3e50);
+        }
+        .menu-item {
+            transition: all 0.2s ease;
+        }
+        .menu-item:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        .menu-item.active {
+            background-color: rgba(255, 255, 255, 0.2);
+            border-bottom: 2px solid #3498db;
+        }
+        /* Dropdown für Mengeneinheit */
+        .me-dropdown {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+        .me-dropdown-content {
+            display: none;
+            position: absolute;
+            background-color: #f9f9f9;
+            min-width: 160px;
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            z-index: 1;
+            max-height: 200px;
+            overflow-y: auto;
+            width: 100%;
+        }
+        .me-dropdown-content div {
+            color: black;
+            padding: 8px 12px;
+            text-decoration: none;
+            display: block;
+            cursor: pointer;
+        }
+        .me-dropdown-content div:hover {
+            background-color: #f1f1f1;
+        }
+        .me-dropdown-content div.highlighted {
+            background-color: #3498db;
+            color: white;
+        }
+        .me-dropdown.show .me-dropdown-content {
+            display: block;
+        }
+        /* Flexbox für Materialnummernfeld und Kamera-Icon */
+        .material-input-group {
+            display: flex;
+            align-items: center;
+            gap: 4px; /* Kleiner Abstand zwischen Feld und Icon */
+        }
+        .material-input-group input {
+            flex-grow: 1; /* Eingabefeld nimmt den meisten Platz ein */
+        }
+        .barcode-scan-btn {
+            background: #3498db;
+            color: white;
+            padding: 8px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0; /* Verhindert, dass der Button schrumpft */
+        }
+        .barcode-scan-btn:hover {
+            background-color: #2980b9;
+        }
+        /* Responsive Table */
+        @media screen and (max-width: 768px) {
+            .terminal-container {
+                padding: 0;
+            }
+            .terminal-header {
+                padding: 1rem;
+            }
+            .bg-white.p-6 {
+                padding: 1rem;
+            }
+            .grid.grid-cols-1.md\\:grid-cols-3 {
+                grid-template-columns: 1fr;
+            }
+            .overflow-x-auto table {
+                width: 100%; /* Ensure table takes full width */
+                display: block;
+            }
+            .overflow-x-auto thead, .overflow-x-auto tbody, .overflow-x-auto th, .overflow-x-auto td, .overflow-x-auto tr {
+                display: block;
+            }
+            .overflow-x-auto thead tr {
+                position: absolute;
+                top: -9999px;
+                left: -9999px;
+            }
+            .overflow-x-auto tr {
+                border: 1px solid #ccc;
+                margin-bottom: 0.5rem;
+                border-radius: 8px;
+                overflow: hidden;
+            }
+            .overflow-x-auto td {
+                border: none;
+                position: relative;
+                padding-left: 50%;
+                text-align: right;
+            }
+            .overflow-x-auto td:before {
+                position: absolute;
+                top: 0;
+                left: 6px;
+                width: 45%;
+                padding-right: 10px;
+                white-space: nowrap;
+                text-align: left;
+                font-weight: bold;
+                content: attr(data-label);
+            }
+            .overflow-x-auto td:nth-of-type(1):before { content: "Materialnummer"; }
+            .overflow-x-auto td:nth-of-type(2):before { content: "Beschreibung"; }
+            .overflow-x-auto td:nth-of-type(3):before { content: "ME"; }
+            .overflow-x-auto td:nth-of-type(4):before { content: "Menge"; }
+            
+            /* Specific adjustments for input fields in responsive table */
+            .overflow-x-auto td .material-input-group {
+                width: 100%;
+                justify-content: flex-end; /* Align content to the right */
+            }
+            .overflow-x-auto td .material-input-group input {
+                text-align: right; /* Align text right in input field */
+            }
+            .overflow-x-auto td .me-dropdown {
+                width: 100%;
+            }
+            .overflow-x-auto td .me-input,
+            .overflow-x-auto td .menge-input,
+            .overflow-x-auto td .description-field {
+                text-align: right;
+            }
+            .overflow-x-auto td .me-dropdown-content {
+                left: unset;
+                right: 0; /* Align dropdown to the right */
+            }
+        }
+        /* Stil für das Barcode-Scanner-Modal */
+        #barcodeScannerDialog video {
+            width: 100%;
+            height: auto;
+            max-height: 400px;
+            display: block;
+            background-color: black;
+        }
+        #barcodeScannerDialog #scanner-container {
+            position: relative;
+            overflow: hidden; /* Sicherstellen, dass nichts überläuft */
+        }
+        #barcodeScannerDialog #qr-canvas {
+            display: none; /* Canvas wird normalerweise von ZXing für das Zeichnen von Erkennungsrahmen verwendet */
+        }
+    </style>
 </head>
 <body class="min-h-screen p-4 md:p-8">
-
 <div class="menu-bar max-w-5xl mx-auto rounded-t-lg overflow-hidden">
-    <div class="flex flex-col sm:flex-row">
-        <div class="menu-item active px-6 py-3 text-white font-medium cursor-pointer text-center sm:text-left" id="terminalMenuItem">
-            Lager-Entnahme Terminal
-        </div>
-        <div class="menu-item px-6 py-3 text-white font-medium cursor-pointer text-center sm:text-left" id="adminMenuItem">
-            Administrator-Bereich
-        </div>
-        <div class="menu-item px-6 py-3 text-white font-medium cursor-pointer hidden text-center sm:text-left" id="historyMenuItem">
-            Entnahme-Verlauf
-        </div>
-        <div class="menu-item px-6 py-3 text-white font-medium cursor-pointer hidden text-center sm:text-left" id="clarificationCasesMenuItem">
-            Klärungsfälle
-        </div>
-    </div>
+<div class="flex flex-col sm:flex-row">
+<div class="menu-item active px-6 py-3 text-white font-medium cursor-pointer text-center sm:text-left" id="terminalMenuItem">
+                Lager-Entnahme Terminal
+            </div>
+<div class="menu-item px-6 py-3 text-white font-medium cursor-pointer text-center sm:text-left" id="adminMenuItem">
+                Administrator-Bereich
+            </div>
+<div class="menu-item px-6 py-3 text-white font-medium cursor-pointer hidden text-center sm:text-left" id="historyMenuItem">
+                Entnahme-Verlauf
+            </div>
+<div class="menu-item px-6 py-3 text-white font-medium cursor-pointer hidden text-center sm:text-left" id="clarificationCasesMenuItem">
+                Klärungsfälle
+            </div>
 </div>
-
+</div>
 <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50" id="pinDialog">
-    <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-        <h3 class="text-xl font-bold text-gray-800 mb-4">Administrator-Anmeldung</h3>
-        <p class="text-gray-600 mb-4">Bitte geben Sie den PIN-Code ein, um auf den Administrator-Bereich zuzugreifen.</p>
-        <div class="mb-4">
-            <label class="block text-sm font-medium text-gray-700 mb-1" for="pinInput">PIN-Code</label>
-            <input autocomplete="new-password" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" id="pinInput" type="password"/>
-            <p class="mt-1 text-sm text-red-600 hidden" id="pinError">Falscher PIN-Code. Bitte versuchen Sie es erneut.</p>
-        </div>
-        <div class="flex justify-end gap-3">
-            <button class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300" id="cancelPin">Abbrechen</button>
-            <button class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700" id="submitPin">Anmelden</button>
-        </div>
-    </div>
+<div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+<h3 class="text-xl font-bold text-gray-800 mb-4">Administrator-Anmeldung</h3>
+<p class="text-gray-600 mb-4">Bitte geben Sie den PIN-Code ein, um auf den Administrator-Bereich zuzugreifen.</p>
+<div class="mb-4">
+<label class="block text-sm font-medium text-gray-700 mb-1" for="pinInput">PIN-Code</label>
+<input autocomplete="new-password" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" id="pinInput" type="password"/>
+<p class="mt-1 text-sm text-red-600 hidden" id="pinError">Falscher PIN-Code. Bitte versuchen Sie es erneut.</p>
 </div>
-
+<div class="flex justify-end gap-3">
+<button class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300" id="cancelPin">
+                    Abbrechen
+                </button>
+<button class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700" id="submitPin">
+                    Anmelden
+                </button>
+</div>
+</div>
+</div>
 <div class="admin-panel max-w-5xl mx-auto bg-white shadow-md overflow-hidden rounded-b-lg">
-    <div class="p-6">
-        <div class="mb-6">
-            <h3 class="text-lg font-medium text-gray-800 mb-3">Material-Datenbank</h3>
-            <div class="flex flex-col md:flex-row gap-4 items-start md:items-end">
-                <div class="flex-grow w-full">
-                    <label class="block text-sm font-medium text-gray-700 mb-1" for="materialFile">CSV-Datei mit SAP-Nummern und Beschreibungen</label>
-                    <input accept=".csv" autocomplete="off" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" id="materialFile" type="file"/>
-                    <p class="mt-1 text-sm text-gray-500">Format: SAP-Nummer;Alternative SAP-Nummer;Beschreibung</p>
-                </div>
-                <button class="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700" id="uploadBtn" type="button">Hochladen</button>
-            </div>
-            <div class="mt-2 text-sm font-medium text-gray-600" id="databaseStatus">Status: Keine Materialdatenbank geladen</div>
-        </div>
-        <div class="mt-6 border-t border-gray-200 pt-6">
-            <h3 class="text-lg font-medium text-gray-800 mb-3">Verwaltung</h3>
-            <div class="flex flex-col sm:flex-row gap-3">
-                <button class="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700" id="showNormalHistoryAdminBtn" type="button">Entnahme-Verlauf anzeigen</button>
-                <button class="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700" id="showClarificationCasesAdminBtn" type="button">Klärungsfälle anzeigen</button>
-            </div>
-        </div>
-        <button class="w-full md:w-auto px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 mt-6 hidden" id="backToAdminPanelBtn" type="button">Zurück zum Administrator-Bereich</button>
-    </div>
+<div class="p-6">
+<div class="mb-6">
+<h3 class="text-lg font-medium text-gray-800 mb-3">Material-Datenbank</h3>
+<div class="flex flex-col md:flex-row gap-4 items-start md:items-end">
+<div class="flex-grow w-full">
+<label class="block text-sm font-medium text-gray-700 mb-1" for="materialFile">CSV-Datei mit Materialnummern und Beschreibungen</label>
+<input accept=".csv" autocomplete="off" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" id="materialFile" type="file"/>
+<p class="mt-1 text-sm text-gray-500">Format: SAP-Nummer;Alternative SAP-Nummer;Beschreibung</p>
 </div>
-
+<button class="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700" id="uploadBtn" type="button">
+                        Hochladen
+                    </button>
+</div>
+<div class="mt-2 text-sm font-medium text-gray-600" id="databaseStatus">
+                    Status: Keine Materialdatenbank geladen
+                </div>
+</div>
+<div class="mt-6 border-t border-gray-200 pt-6">
+<h3 class="text-lg font-medium text-gray-800 mb-3">Verwaltung</h3>
+<div class="flex flex-col sm:flex-row gap-3">
+<button class="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700" id="showNormalHistoryAdminBtn" type="button">
+                        Entnahme-Verlauf anzeigen
+                    </button>
+<button class="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700" id="showClarificationCasesAdminBtn" type="button">
+                        Klärungsfälle anzeigen
+                    </button>
+</div>
+</div>
+<button class="w-full md:w-auto px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 mt-6 hidden" id="backToAdminPanelBtn" type="button">
+                Zurück zum Administrator-Bereich
+            </button>
+</div>
+</div>
 <div class="terminal-container max-w-5xl mx-auto bg-white shadow-md overflow-hidden rounded-b-lg">
-    <div class="terminal-header p-4 text-white flex justify-between items-center">
-        <h1 class="text-xl md:text-2xl font-bold">Lager-Entnahme Terminal</h1>
-        <div class="text-sm text-right">
-            <span id="current-date"></span> <br class="md:hidden"/> <span id="current-time"></span>
-        </div>
-    </div>
-    <div class="bg-white p-6">
-        <form autocomplete="off" class="space-y-6" id="entnahmeForm">
-            <div class="border-b border-gray-200 pb-4">
-                <h2 class="text-lg font-medium text-gray-800 mb-3">Mitarbeiterinformationen</h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1" for="mitarbeiter">Name des Mitarbeiters</label>
-                        <input autocomplete="off" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" id="mitarbeiter" name="mitarbeiter" required="" type="text"/>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1" for="entnahmedatum">Datum der Entnahme</label>
-                        <input autocomplete="off" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" id="entnahmedatum" name="entnahmedatum" required="" type="date"/>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1" for="vorgesetzter">Name Vorgesetzter</label>
-                        <input autocomplete="off" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" id="vorgesetzter" name="vorgesetzter" type="text"/>
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1" for="kostenstelle">Kostenstelle</label>
-                        <input autocomplete="off" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" id="kostenstelle" name="kostenstelle" type="text"/>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1" for="auftrag">Auftrag</label>
-                        <input autocomplete="off" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" id="auftrag" name="auftrag" type="text"/>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1" for="projektnr">Projekt-Nr.</label>
-                        <input autocomplete="off" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" id="projektnr" name="projektnr" type="text"/>
-                    </div>
-                </div>
-            </div>
-            <div class="pb-4 mb-4">
-                <h2 class="text-lg font-medium text-gray-800 mb-3">Material-Entnahme</h2>
-                <div class="overflow-x-auto">
-                    <table class="min-w-full">
-                        <thead>
-                            <tr class="text-left text-gray-600">
-                                <th class="px-2 py-2 w-1/4">SAP-Nr.</th>
-                                <th class="px-2 py-2 w-1/2">Beschreibung</th>
-                                <th class="px-2 py-2 w-12">ME</th>
-                                <th class="px-2 py-2 w-20">Menge</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr class="material-row">
-                                <td class="px-2 py-1" data-label="SAP-Nr.">
-                                    <div class="material-input-group">
-                                        <input autocomplete="off" class="material-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="material_1" placeholder="SAP-Nr." type="text"/>
-                                        <button class="barcode-scan-btn" onclick="openBarcodeScanner(1)" type="button"><i class="fas fa-camera"></i></button>
-                                    </div>
-                                    <input name="primary_material_1" type="hidden"/>
-                                </td>
-                                <td class="px-2 py-1" data-label="Beschreibung"><textarea autocomplete="off" class="description-field w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="description_1" placeholder="Beschreibung" rows="2"></textarea></td>
-                                <td class="px-2 py-1" data-label="ME">
-                                    <div class="me-dropdown">
-                                        <input autocomplete="off" class="me-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="me_1" placeholder="ME" type="text"/>
-                                        <div class="me-dropdown-content">
-                                            <div data-text="Stück" data-value="1">1 - Stück</div><div data-text="Kilogramm" data-value="2">2 - Kilogramm</div><div data-text="Meter" data-value="3">3 - Meter</div><div data-text="Liter" data-value="4">4 - Liter</div><div data-text="Raummeter" data-value="5">5 - Raummeter</div><div data-text="Quadratmeter" data-value="6">6 - Quadratmeter</div><div data-text="Trommel" data-value="7">7 - Trommel</div><div data-text="Gitterbox" data-value="8">8 - Gitterbox</div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td class="px-2 py-1" data-label="Menge"><input autocomplete="off" class="menge-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" min="1" name="menge_1" placeholder="Menge" type="number"/></td>
-                            </tr>
-                           <tr class="material-row">
-                                <td class="px-2 py-1" data-label="SAP-Nr.">
-                                    <div class="material-input-group">
-                                        <input autocomplete="off" class="material-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="material_2" placeholder="SAP-Nr." type="text"/>
-                                        <button class="barcode-scan-btn" onclick="openBarcodeScanner(2)" type="button"><i class="fas fa-camera"></i></button>
-                                    </div>
-                                    <input name="primary_material_2" type="hidden"/>
-                                </td>
-                                <td class="px-2 py-1" data-label="Beschreibung"><textarea autocomplete="off" class="description-field w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="description_2" placeholder="Beschreibung" rows="2"></textarea></td>
-                                <td class="px-2 py-1" data-label="ME">
-                                    <div class="me-dropdown">
-                                        <input autocomplete="off" class="me-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="me_2" placeholder="ME" type="text"/>
-                                        <div class="me-dropdown-content">
-                                            <div data-text="Stück" data-value="1">1 - Stück</div><div data-text="Kilogramm" data-value="2">2 - Kilogramm</div><div data-text="Meter" data-value="3">3 - Meter</div><div data-text="Liter" data-value="4">4 - Liter</div><div data-text="Raummeter" data-value="5">5 - Raummeter</div><div data-text="Quadratmeter" data-value="6">6 - Quadratmeter</div><div data-text="Trommel" data-value="7">7 - Trommel</div><div data-text="Gitterbox" data-value="8">8 - Gitterbox</div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td class="px-2 py-1" data-label="Menge"><input autocomplete="off" class="menge-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" min="1" name="menge_2" placeholder="Menge" type="number"/></td>
-                            </tr>
-                            <tr class="material-row">
-                                <td class="px-2 py-1" data-label="SAP-Nr.">
-                                    <div class="material-input-group">
-                                        <input autocomplete="off" class="material-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="material_3" placeholder="SAP-Nr." type="text"/>
-                                        <button class="barcode-scan-btn" onclick="openBarcodeScanner(3)" type="button"><i class="fas fa-camera"></i></button>
-                                    </div>
-                                    <input name="primary_material_3" type="hidden"/>
-                                </td>
-                                <td class="px-2 py-1" data-label="Beschreibung"><textarea autocomplete="off" class="description-field w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="description_3" placeholder="Beschreibung" rows="2"></textarea></td>
-                                <td class="px-2 py-1" data-label="ME">
-                                    <div class="me-dropdown">
-                                        <input autocomplete="off" class="me-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="me_3" placeholder="ME" type="text"/>
-                                        <div class="me-dropdown-content">
-                                            <div data-text="Stück" data-value="1">1 - Stück</div><div data-text="Kilogramm" data-value="2">2 - Kilogramm</div><div data-text="Meter" data-value="3">3 - Meter</div><div data-text="Liter" data-value="4">4 - Liter</div><div data-text="Raummeter" data-value="5">5 - Raummeter</div><div data-text="Quadratmeter" data-value="6">6 - Quadratmeter</div><div data-text="Trommel" data-value="7">7 - Trommel</div><div data-text="Gitterbox" data-value="8">8 - Gitterbox</div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td class="px-2 py-1" data-label="Menge"><input autocomplete="off" class="menge-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" min="1" name="menge_3" placeholder="Menge" type="number"/></td>
-                            </tr>
-                            <tr class="material-row">
-                                <td class="px-2 py-1" data-label="SAP-Nr.">
-                                    <div class="material-input-group">
-                                        <input autocomplete="off" class="material-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="material_4" placeholder="SAP-Nr." type="text"/>
-                                        <button class="barcode-scan-btn" onclick="openBarcodeScanner(4)" type="button"><i class="fas fa-camera"></i></button>
-                                    </div>
-                                    <input name="primary_material_4" type="hidden"/>
-                                </td>
-                                <td class="px-2 py-1" data-label="Beschreibung"><textarea autocomplete="off" class="description-field w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="description_4" placeholder="Beschreibung" rows="2"></textarea></td>
-                                <td class="px-2 py-1" data-label="ME">
-                                    <div class="me-dropdown">
-                                        <input autocomplete="off" class="me-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="me_4" placeholder="ME" type="text"/>
-                                        <div class="me-dropdown-content">
-                                            <div data-text="Stück" data-value="1">1 - Stück</div><div data-text="Kilogramm" data-value="2">2 - Kilogramm</div><div data-text="Meter" data-value="3">3 - Meter</div><div data-text="Liter" data-value="4">4 - Liter</div><div data-text="Raummeter" data-value="5">5 - Raummeter</div><div data-text="Quadratmeter" data-value="6">6 - Quadratmeter</div><div data-text="Trommel" data-value="7">7 - Trommel</div><div data-text="Gitterbox" data-value="8">8 - Gitterbox</div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td class="px-2 py-1" data-label="Menge"><input autocomplete="off" class="menge-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" min="1" name="menge_4" placeholder="Menge" type="number"/></td>
-                            </tr>
-                             <tr class="material-row">
-                                <td class="px-2 py-1" data-label="SAP-Nr.">
-                                    <div class="material-input-group">
-                                        <input autocomplete="off" class="material-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="material_5" placeholder="SAP-Nr." type="text"/>
-                                        <button class="barcode-scan-btn" onclick="openBarcodeScanner(5)" type="button"><i class="fas fa-camera"></i></button>
-                                    </div>
-                                    <input name="primary_material_5" type="hidden"/>
-                                </td>
-                                <td class="px-2 py-1" data-label="Beschreibung"><textarea autocomplete="off" class="description-field w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="description_5" placeholder="Beschreibung" rows="2"></textarea></td>
-                                <td class="px-2 py-1" data-label="ME">
-                                    <div class="me-dropdown">
-                                        <input autocomplete="off" class="me-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="me_5" placeholder="ME" type="text"/>
-                                        <div class="me-dropdown-content">
-                                            <div data-text="Stück" data-value="1">1 - Stück</div><div data-text="Kilogramm" data-value="2">2 - Kilogramm</div><div data-text="Meter" data-value="3">3 - Meter</div><div data-text="Liter" data-value="4">4 - Liter</div><div data-text="Raummeter" data-value="5">5 - Raummeter</div><div data-text="Quadratmeter" data-value="6">6 - Quadratmeter</div><div data-text="Trommel" data-value="7">7 - Trommel</div><div data-text="Gitterbox" data-value="8">8 - Gitterbox</div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td class="px-2 py-1" data-label="Menge"><input autocomplete="off" class="menge-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" min="1" name="menge_5" placeholder="Menge" type="number"/></td>
-                            </tr>
-                            <tr class="material-row">
-                                <td class="px-2 py-1" data-label="SAP-Nr.">
-                                    <div class="material-input-group">
-                                        <input autocomplete="off" class="material-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="material_6" placeholder="SAP-Nr." type="text"/>
-                                        <button class="barcode-scan-btn" onclick="openBarcodeScanner(6)" type="button"><i class="fas fa-camera"></i></button>
-                                    </div>
-                                    <input name="primary_material_6" type="hidden"/>
-                                </td>
-                                <td class="px-2 py-1" data-label="Beschreibung"><textarea autocomplete="off" class="description-field w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="description_6" placeholder="Beschreibung" rows="2"></textarea></td>
-                                <td class="px-2 py-1" data-label="ME">
-                                    <div class="me-dropdown">
-                                        <input autocomplete="off" class="me-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="me_6" placeholder="ME" type="text"/>
-                                        <div class="me-dropdown-content">
-                                            <div data-text="Stück" data-value="1">1 - Stück</div><div data-text="Kilogramm" data-value="2">2 - Kilogramm</div><div data-text="Meter" data-value="3">3 - Meter</div><div data-text="Liter" data-value="4">4 - Liter</div><div data-text="Raummeter" data-value="5">5 - Raummeter</div><div data-text="Quadratmeter" data-value="6">6 - Quadratmeter</div><div data-text="Trommel" data-value="7">7 - Trommel</div><div data-text="Gitterbox" data-value="8">8 - Gitterbox</div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td class="px-2 py-1" data-label="Menge"><input autocomplete="off" class="menge-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" min="1" name="menge_6" placeholder="Menge" type="number"/></td>
-                            </tr>
-                            <tr class="material-row">
-                                <td class="px-2 py-1" data-label="SAP-Nr.">
-                                    <div class="material-input-group">
-                                        <input autocomplete="off" class="material-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="material_7" placeholder="SAP-Nr." type="text"/>
-                                        <button class="barcode-scan-btn" onclick="openBarcodeScanner(7)" type="button"><i class="fas fa-camera"></i></button>
-                                    </div>
-                                    <input name="primary_material_7" type="hidden"/>
-                                </td>
-                                <td class="px-2 py-1" data-label="Beschreibung"><textarea autocomplete="off" class="description-field w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="description_7" placeholder="Beschreibung" rows="2"></textarea></td>
-                                <td class="px-2 py-1" data-label="ME">
-                                    <div class="me-dropdown">
-                                        <input autocomplete="off" class="me-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="me_7" placeholder="ME" type="text"/>
-                                        <div class="me-dropdown-content">
-                                            <div data-text="Stück" data-value="1">1 - Stück</div><div data-text="Kilogramm" data-value="2">2 - Kilogramm</div><div data-text="Meter" data-value="3">3 - Meter</div><div data-text="Liter" data-value="4">4 - Liter</div><div data-text="Raummeter" data-value="5">5 - Raummeter</div><div data-text="Quadratmeter" data-value="6">6 - Quadratmeter</div><div data-text="Trommel" data-value="7">7 - Trommel</div><div data-text="Gitterbox" data-value="8">8 - Gitterbox</div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td class="px-2 py-1" data-label="Menge"><input autocomplete="off" class="menge-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" min="1" name="menge_7" placeholder="Menge" type="number"/></td>
-                            </tr>
-                            <tr class="material-row">
-                                <td class="px-2 py-1" data-label="SAP-Nr.">
-                                    <div class="material-input-group">
-                                        <input autocomplete="off" class="material-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="material_8" placeholder="SAP-Nr." type="text"/>
-                                        <button class="barcode-scan-btn" onclick="openBarcodeScanner(8)" type="button"><i class="fas fa-camera"></i></button>
-                                    </div>
-                                    <input name="primary_material_8" type="hidden"/>
-                                </td>
-                                <td class="px-2 py-1" data-label="Beschreibung"><textarea autocomplete="off" class="description-field w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="description_8" placeholder="Beschreibung" rows="2"></textarea></td>
-                                <td class="px-2 py-1" data-label="ME">
-                                    <div class="me-dropdown">
-                                        <input autocomplete="off" class="me-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="me_8" placeholder="ME" type="text"/>
-                                        <div class="me-dropdown-content">
-                                            <div data-text="Stück" data-value="1">1 - Stück</div><div data-text="Kilogramm" data-value="2">2 - Kilogramm</div><div data-text="Meter" data-value="3">3 - Meter</div><div data-text="Liter" data-value="4">4 - Liter</div><div data-text="Raummeter" data-value="5">5 - Raummeter</div><div data-text="Quadratmeter" data-value="6">6 - Quadratmeter</div><div data-text="Trommel" data-value="7">7 - Trommel</div><div data-text="Gitterbox" data-value="8">8 - Gitterbox</div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td class="px-2 py-1" data-label="Menge"><input autocomplete="off" class="menge-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" min="1" name="menge_8" placeholder="Menge" type="number"/></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            <div class="flex flex-col sm:flex-row justify-between pt-4 border-t border-gray-200 gap-3">
-                <button class="w-full sm:w-auto px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300" id="clearForm" type="button">Formular zurücksetzen</button>
-                <button class="btn-primary w-full sm:w-auto px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-md" type="submit">Entnahme bestätigen</button>
-            </div>
-        </form>
-    </div>
+<div class="terminal-header p-4 text-white flex justify-between items-center">
+<h1 class="text-xl md:text-2xl font-bold">Lager-Entnahme Terminal</h1>
+<div class="text-sm text-right">
+<span id="current-date"></span> <br class="md:hidden"/> <span id="current-time"></span>
 </div>
-
+</div>
+<div class="bg-white p-6">
+<form autocomplete="off" class="space-y-6" id="entnahmeForm">
+<div class="border-b border-gray-200 pb-4">
+<h2 class="text-lg font-medium text-gray-800 mb-3">Mitarbeiterinformationen</h2>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+<div>
+<label class="block text-sm font-medium text-gray-700 mb-1" for="mitarbeiter">Name des Mitarbeiters</label>
+<input autocomplete="off" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" id="mitarbeiter" name="mitarbeiter" required="" type="text"/>
+</div>
+<div>
+<label class="block text-sm font-medium text-gray-700 mb-1" for="entnahmedatum">Datum der Entnahme</label>
+<input autocomplete="off" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" id="entnahmedatum" name="entnahmedatum" required="" type="date"/>
+</div>
+<div>
+<label class="block text-sm font-medium text-gray-700 mb-1" for="vorgesetzter">Name Vorgesetzter</label>
+<input autocomplete="off" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" id="vorgesetzter" name="vorgesetzter" type="text"/>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+<div>
+<label class="block text-sm font-medium text-gray-700 mb-1" for="kostenstelle">Kostenstelle</label>
+<input autocomplete="off" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" id="kostenstelle" name="kostenstelle" type="text"/>
+</div>
+<div>
+<label class="block text-sm font-medium text-gray-700 mb-1" for="auftrag">Auftrag</label>
+<input autocomplete="off" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" id="auftrag" name="auftrag" type="text"/>
+</div>
+<div>
+<label class="block text-sm font-medium text-gray-700 mb-1" for="projektnr">Projekt-Nr.</label>
+<input autocomplete="off" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" id="projektnr" name="projektnr" type="text"/>
+</div>
+</div>
+</div>
+<div class="pb-4 mb-4">
+<h2 class="text-lg font-medium text-gray-800 mb-3">Material-Entnahme</h2>
+<div class="overflow-x-auto">
+<table class="min-w-full">
+<thead>
+<tr class="text-left text-gray-600">
+<th class="px-2 py-2 w-1/4">Materialnummer</th>
+<th class="px-2 py-2 w-1/2">Beschreibung</th>
+<th class="px-2 py-2 w-12">ME</th>
+<th class="px-2 py-2 w-20">Menge</th>
+</tr>
+</thead>
+<tbody>
+<tr class="material-row">
+<td class="px-2 py-1" data-label="Materialnummer">
+<div class="material-input-group">
+<input autocomplete="off" class="material-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="material_1" placeholder="Materialnummer" type="text"/>
+<button class="barcode-scan-btn" onclick="openBarcodeScanner(1)" type="button">
+<i class="fas fa-camera"></i>
+</button>
+</div>
+<input name="primary_material_1" type="hidden"/>
+</td>
+<td class="px-2 py-1" data-label="Beschreibung">
+<input autocomplete="off" class="description-field w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="description_1" placeholder="Beschreibung" type="text"/>
+</td>
+<td class="px-2 py-1" data-label="ME">
+<div class="me-dropdown">
+<input autocomplete="off" class="me-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="me_1" placeholder="ME" type="text"/>
+<div class="me-dropdown-content">
+<div data-text="Stück" data-value="1">1 - Stück</div>
+<div data-text="Kilogramm" data-value="2">2 - Kilogramm</div>
+<div data-text="Meter" data-value="3">3 - Meter</div>
+<div data-text="Liter" data-value="4">4 - Liter</div>
+<div data-text="Raummeter" data-value="5">5 - Raummeter</div>
+<div data-text="Quadratmeter" data-value="6">6 - Quadratmeter</div>
+<div data-text="Trommel" data-value="7">7 - Trommel</div>
+<div data-text="Gitterbox" data-value="8">8 - Gitterbox</div>
+</div>
+</div>
+</td>
+<td class="px-2 py-1" data-label="Menge">
+<input autocomplete="off" class="menge-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" min="1" name="menge_1" placeholder="Menge" type="number"/>
+</td>
+</tr>
+<tr class="material-row">
+<td class="px-2 py-1" data-label="Materialnummer">
+<div class="material-input-group">
+<input autocomplete="off" class="material-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="material_2" placeholder="Materialnummer" type="text"/>
+<button class="barcode-scan-btn" onclick="openBarcodeScanner(2)" type="button">
+<i class="fas fa-camera"></i>
+</button>
+</div>
+<input name="primary_material_2" type="hidden"/>
+</td>
+<td class="px-2 py-1" data-label="Beschreibung">
+<input autocomplete="off" class="description-field w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="description_2" placeholder="Beschreibung" type="text"/>
+</td>
+<td class="px-2 py-1" data-label="ME">
+<div class="me-dropdown">
+<input autocomplete="off" class="me-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="me_2" placeholder="ME" type="text"/>
+<div class="me-dropdown-content">
+<div data-text="Stück" data-value="1">1 - Stück</div>
+<div data-text="Kilogramm" data-value="2">2 - Kilogramm</div>
+<div data-text="Meter" data-value="3">3 - Meter</div>
+<div data-text="Liter" data-value="4">4 - Liter</div>
+<div data-text="Raummeter" data-value="5">5 - Raummeter</div>
+<div data-text="Quadratmeter" data-value="6">6 - Quadratmeter</div>
+<div data-text="Trommel" data-value="7">7 - Trommel</div>
+<div data-text="Gitterbox" data-value="8">8 - Gitterbox</div>
+</div>
+</div>
+</td>
+<td class="px-2 py-1" data-label="Menge">
+<input autocomplete="off" class="menge-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" min="1" name="menge_2" placeholder="Menge" type="number"/>
+</td>
+</tr>
+<tr class="material-row">
+<td class="px-2 py-1" data-label="Materialnummer">
+<div class="material-input-group">
+<input autocomplete="off" class="material-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="material_3" placeholder="Materialnummer" type="text"/>
+<button class="barcode-scan-btn" onclick="openBarcodeScanner(3)" type="button">
+<i class="fas fa-camera"></i>
+</button>
+</div>
+<input name="primary_material_3" type="hidden"/>
+</td>
+<td class="px-2 py-1" data-label="Beschreibung">
+<input autocomplete="off" class="description-field w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="description_3" placeholder="Beschreibung" type="text"/>
+</td>
+<td class="px-2 py-1" data-label="ME">
+<div class="me-dropdown">
+<input autocomplete="off" class="me-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="me_3" placeholder="ME" type="text"/>
+<div class="me-dropdown-content">
+<div data-text="Stück" data-value="1">1 - Stück</div>
+<div data-text="Kilogramm" data-value="2">2 - Kilogramm</div>
+<div data-text="Meter" data-value="3">3 - Meter</div>
+<div data-text="Liter" data-value="4">4 - Liter</div>
+<div data-text="Raummeter" data-value="5">5 - Raummeter</div>
+<div data-text="Quadratmeter" data-value="6">6 - Quadratmeter</div>
+<div data-text="Trommel" data-value="7">7 - Trommel</div>
+<div data-text="Gitterbox" data-value="8">8 - Gitterbox</div>
+</div>
+</div>
+</td>
+<td class="px-2 py-1" data-label="Menge">
+<input autocomplete="off" class="menge-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" min="1" name="menge_3" placeholder="Menge" type="number"/>
+</td>
+</tr>
+<tr class="material-row">
+<td class="px-2 py-1" data-label="Materialnummer">
+<div class="material-input-group">
+<input autocomplete="off" class="material-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="material_4" placeholder="Materialnummer" type="text"/>
+<button class="barcode-scan-btn" onclick="openBarcodeScanner(4)" type="button">
+<i class="fas fa-camera"></i>
+</button>
+</div>
+<input name="primary_material_4" type="hidden"/>
+</td>
+<td class="px-2 py-1" data-label="Beschreibung">
+<input autocomplete="off" class="description-field w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="description_4" placeholder="Beschreibung" type="text"/>
+</td>
+<td class="px-2 py-1" data-label="ME">
+<div class="me-dropdown">
+<input autocomplete="off" class="me-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="me_4" placeholder="ME" type="text"/>
+<div class="me-dropdown-content">
+<div data-text="Stück" data-value="1">1 - Stück</div>
+<div data-text="Kilogramm" data-value="2">2 - Kilogramm</div>
+<div data-text="Meter" data-value="3">3 - Meter</div>
+<div data-text="Liter" data-value="4">4 - Liter</div>
+<div data-text="Raummeter" data-value="5">5 - Raummeter</div>
+<div data-text="Quadratmeter" data-value="6">6 - Quadratmeter</div>
+<div data-text="Trommel" data-value="7">7 - Trommel</div>
+<div data-text="Gitterbox" data-value="8">8 - Gitterbox</div>
+</div>
+</div>
+</td>
+<td class="px-2 py-1" data-label="Menge">
+<input autocomplete="off" class="menge-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" min="1" name="menge_4" placeholder="Menge" type="number"/>
+</td>
+</tr>
+<tr class="material-row">
+<td class="px-2 py-1" data-label="Materialnummer">
+<div class="material-input-group">
+<input autocomplete="off" class="material-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="material_5" placeholder="Materialnummer" type="text"/>
+<button class="barcode-scan-btn" onclick="openBarcodeScanner(5)" type="button">
+<i class="fas fa-camera"></i>
+</button>
+</div>
+<input name="primary_material_5" type="hidden"/>
+</td>
+<td class="px-2 py-1" data-label="Beschreibung">
+<input autocomplete="off" class="description-field w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="description_5" placeholder="Beschreibung" type="text"/>
+</td>
+<td class="px-2 py-1" data-label="ME">
+<div class="me-dropdown">
+<input autocomplete="off" class="me-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="me_5" placeholder="ME" type="text"/>
+<div class="me-dropdown-content">
+<div data-text="Stück" data-value="1">1 - Stück</div>
+<div data-text="Kilogramm" data-value="2">2 - Kilogramm</div>
+<div data-text="Meter" data-value="3">3 - Meter</div>
+<div data-text="Liter" data-value="4">4 - Liter</div>
+<div data-text="Raummeter" data-value="5">5 - Raummeter</div>
+<div data-text="Quadratmeter" data-value="6">6 - Quadratmeter</div>
+<div data-text="Trommel" data-value="7">7 - Trommel</div>
+<div data-text="Gitterbox" data-value="8">8 - Gitterbox</div>
+</div>
+</div>
+</td>
+<td class="px-2 py-1" data-label="Menge">
+<input autocomplete="off" class="menge-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" min="1" name="menge_5" placeholder="Menge" type="number"/>
+</td>
+</tr>
+<tr class="material-row">
+<td class="px-2 py-1" data-label="Materialnummer">
+<div class="material-input-group">
+<input autocomplete="off" class="material-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="material_6" placeholder="Materialnummer" type="text"/>
+<button class="barcode-scan-btn" onclick="openBarcodeScanner(6)" type="button">
+<i class="fas fa-camera"></i>
+</button>
+</div>
+<input name="primary_material_6" type="hidden"/>
+</td>
+<td class="px-2 py-1" data-label="Beschreibung">
+<input autocomplete="off" class="description-field w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="description_6" placeholder="Beschreibung" type="text"/>
+</td>
+<td class="px-2 py-1" data-label="ME">
+<div class="me-dropdown">
+<input autocomplete="off" class="me-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="me_6" placeholder="ME" type="text"/>
+<div class="me-dropdown-content">
+<div data-text="Stück" data-value="1">1 - Stück</div>
+<div data-text="Kilogramm" data-value="2">2 - Kilogramm</div>
+<div data-text="Meter" data-value="3">3 - Meter</div>
+<div data-text="Liter" data-value="4">4 - Liter</div>
+<div data-text="Raummeter" data-value="5">5 - Raummeter</div>
+<div data-text="Quadratmeter" data-value="6">6 - Quadratmeter</div>
+<div data-text="Trommel" data-value="7">7 - Trommel</div>
+<div data-text="Gitterbox" data-value="8">8 - Gitterbox</div>
+</div>
+</div>
+</td>
+<td class="px-2 py-1" data-label="Menge">
+<input autocomplete="off" class="menge-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" min="1" name="menge_6" placeholder="Menge" type="number"/>
+</td>
+</tr>
+<tr class="material-row">
+<td class="px-2 py-1" data-label="Materialnummer">
+<div class="material-input-group">
+<input autocomplete="off" class="material-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="material_7" placeholder="Materialnummer" type="text"/>
+<button class="barcode-scan-btn" onclick="openBarcodeScanner(7)" type="button">
+<i class="fas fa-camera"></i>
+</button>
+</div>
+<input name="primary_material_7" type="hidden"/>
+</td>
+<td class="px-2 py-1" data-label="Beschreibung">
+<input autocomplete="off" class="description-field w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="description_7" placeholder="Beschreibung" type="text"/>
+</td>
+<td class="px-2 py-1" data-label="ME">
+<div class="me-dropdown">
+<input autocomplete="off" class="me-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="me_7" placeholder="ME" type="text"/>
+<div class="me-dropdown-content">
+<div data-text="Stück" data-value="1">1 - Stück</div>
+<div data-text="Kilogramm" data-value="2">2 - Kilogramm</div>
+<div data-text="Meter" data-value="3">3 - Meter</div>
+<div data-text="Liter" data-value="4">4 - Liter</div>
+<div data-text="Raummeter" data-value="5">5 - Raummeter</div>
+<div data-text="Quadratmeter" data-value="6">6 - Quadratmeter</div>
+<div data-text="Trommel" data-value="7">7 - Trommel</div>
+<div data-text="Gitterbox" data-value="8">8 - Gitterbox</div>
+</div>
+</div>
+</td>
+<td class="px-2 py-1" data-label="Menge">
+<input autocomplete="off" class="menge-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" min="1" name="menge_7" placeholder="Menge" type="number"/>
+</td>
+</tr>
+<tr class="material-row">
+<td class="px-2 py-1" data-label="Materialnummer">
+<div class="material-input-group">
+<input autocomplete="off" class="material-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="material_8" placeholder="Materialnummer" type="text"/>
+<button class="barcode-scan-btn" onclick="openBarcodeScanner(8)" type="button">
+<i class="fas fa-camera"></i>
+</button>
+</div>
+<input name="primary_material_8" type="hidden"/>
+</td>
+<td class="px-2 py-1" data-label="Beschreibung">
+<input autocomplete="off" class="description-field w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="description_8" placeholder="Beschreibung" type="text"/>
+</td>
+<td class="px-2 py-1" data-label="ME">
+<div class="me-dropdown">
+<input autocomplete="off" class="me-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" name="me_8" placeholder="ME" type="text"/>
+<div class="me-dropdown-content">
+<div data-text="Stück" data-value="1">1 - Stück</div>
+<div data-text="Kilogramm" data-value="2">2 - Kilogramm</div>
+<div data-text="Meter" data-value="3">3 - Meter</div>
+<div data-text="Liter" data-value="4">4 - Liter</div>
+<div data-text="Raummeter" data-value="5">5 - Raummeter</div>
+<div data-text="Quadratmeter" data-value="6">6 - Quadratmeter</div>
+<div data-text="Trommel" data-value="7">7 - Trommel</div>
+<div data-text="Gitterbox" data-value="8">8 - Gitterbox</div>
+</div>
+</div>
+</td>
+<td class="px-2 py-1" data-label="Menge">
+<input autocomplete="off" class="menge-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" min="1" name="menge_8" placeholder="Menge" type="number"/>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="flex flex-col sm:flex-row justify-between pt-4 border-t border-gray-200 gap-3">
+<button class="w-full sm:w-auto px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300" id="clearForm" type="button">
+                        Formular zurücksetzen
+                    </button>
+<button class="btn-primary w-full sm:w-auto px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-md" type="submit">
+                        Entnahme bestätigen
+                    </button>
+</div>
+</form>
+</div>
+</div>
 <div class="history-panel max-w-5xl mx-auto mt-8 bg-white rounded-lg shadow-md overflow-hidden">
-    <div class="bg-gray-800 text-white p-4 flex flex-col sm:flex-row justify-between items-center gap-2">
-        <h2 class="text-xl font-bold">Entnahme-Verlauf</h2>
-        <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-            <button class="px-4 py-1 bg-blue-600 hover:bg-blue-700 rounded-md text-sm font-medium" id="exportNormalHistoryBtn">Als CSV exportieren</button>
-            <button class="px-4 py-1 bg-red-600 hover:bg-red-700 rounded-md text-sm font-medium" id="clearNormalHistoryBtn">Verlauf löschen</button>
-        </div>
-    </div>
-    <div class="p-4 overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead>
-                <tr>
-                    <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Datum</th>
-                    <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mitarbeiter</th>
-                    <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Materialien</th>
-                    <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aktionen</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200" id="normalHistoryList"></tbody>
-        </table>
-        <div class="text-center py-4 text-gray-500" id="emptyNormalHistory">Keine Entnahmen vorhanden</div>
-    </div>
+<div class="bg-gray-800 text-white p-4 flex flex-col sm:flex-row justify-between items-center gap-2">
+<h2 class="text-xl font-bold">Entnahme-Verlauf</h2>
+<div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+<button class="px-4 py-1 bg-blue-600 hover:bg-blue-700 rounded-md text-sm font-medium" id="exportNormalHistoryBtn">
+                    Als CSV exportieren
+                </button>
+<button class="px-4 py-1 bg-red-600 hover:bg-red-700 rounded-md text-sm font-medium" id="clearNormalHistoryBtn">
+                    Verlauf löschen
+                </button>
 </div>
-
+</div>
+<div class="p-4 overflow-x-auto">
+<table class="min-w-full divide-y divide-gray-200">
+<thead>
+<tr>
+<th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Datum</th>
+<th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mitarbeiter</th>
+<th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Materialien</th>
+<th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aktionen</th>
+</tr>
+</thead>
+<tbody class="bg-white divide-y divide-gray-200" id="normalHistoryList">
+</tbody>
+</table>
+<div class="text-center py-4 text-gray-500" id="emptyNormalHistory">
+                Keine Entnahmen vorhanden
+            </div>
+</div>
+</div>
 <div class="clarification-cases-panel max-w-5xl mx-auto mt-8 bg-white rounded-lg shadow-md overflow-hidden">
-    <div class="bg-gray-800 text-white p-4 flex flex-col sm:flex-row justify-between items-center gap-2">
-        <h2 class="text-xl font-bold">Klärungsfälle</h2>
-        <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-            <button class="px-4 py-1 bg-blue-600 hover:bg-blue-700 rounded-md text-sm font-medium" id="exportClarificationCasesBtn">Als CSV exportieren</button>
-            <button class="px-4 py-1 bg-red-600 hover:bg-red-700 rounded-md text-sm font-medium" id="clearClarificationCasesBtn">Verlauf löschen</button>
-        </div>
-    </div>
-    <div class="p-4 overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead>
-                <tr>
-                    <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Datum</th>
-                    <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mitarbeiter</th>
-                    <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Materialien</th>
-                    <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aktionen</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200" id="clarificationCasesList"></tbody>
-        </table>
-        <div class="text-center py-4 text-gray-500" id="emptyClarificationCases">Keine Klärungsfälle vorhanden</div>
-    </div>
+<div class="bg-gray-800 text-white p-4 flex flex-col sm:flex-row justify-between items-center gap-2">
+<h2 class="text-xl font-bold">Klärungsfälle</h2>
+<div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+<button class="px-4 py-1 bg-blue-600 hover:bg-blue-700 rounded-md text-sm font-medium" id="exportClarificationCasesBtn">
+                    Als CSV exportieren
+                </button>
+<button class="px-4 py-1 bg-red-600 hover:bg-red-700 rounded-md text-sm font-medium" id="clearClarificationCasesBtn">
+                    Verlauf löschen
+                </button>
 </div>
-
+</div>
+<div class="p-4 overflow-x-auto">
+<table class="min-w-full divide-y divide-gray-200">
+<thead>
+<tr>
+<th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Datum</th>
+<th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mitarbeiter</th>
+<th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Materialien</th>
+<th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aktionen</th>
+</tr>
+</thead>
+<tbody class="bg-white divide-y divide-gray-200" id="clarificationCasesList">
+</tbody>
+</table>
+<div class="text-center py-4 text-gray-500" id="emptyClarificationCases">
+                Keine Klärungsfälle vorhanden
+            </div>
+</div>
+</div>
 <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50" id="confirmationDialog">
-    <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-        <h3 class="text-xl font-bold text-gray-800 mb-4">Entnahme erfolgreich!</h3>
-        <p class="text-gray-600 mb-6">Die Materialentnahme wurde erfolgreich gespeichert.</p>
-        <div class="flex justify-end"><button class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700" id="closeDialog">Schließen</button></div>
-    </div>
+<div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+<h3 class="text-xl font-bold text-gray-800 mb-4">Entnahme erfolgreich!</h3>
+<p class="text-gray-600 mb-6">Die Materialentnahme wurde erfolgreich gespeichert.</p>
+<div class="flex justify-end">
+<button class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700" id="closeDialog">
+                    Schließen
+                </button>
+</div>
+</div>
 </div>
 <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50" id="deleteConfirmDialog">
-    <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-        <h3 class="text-xl font-bold text-gray-800 mb-4">Verlauf löschen?</h3>
-        <p class="text-gray-600 mb-6">Möchten Sie wirklich den gesamten Entnahme-Verlauf löschen? Diese Aktion kann nicht rückgängig gemacht werden.</p>
-        <div class="flex justify-end gap-3">
-            <button class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300" id="cancelDelete">Abbrechen</button>
-            <button class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700" id="confirmDelete">Löschen</button>
-        </div>
-    </div>
+<div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+<h3 class="text-xl font-bold text-gray-800 mb-4">Verlauf löschen?</h3>
+<p class="text-gray-600 mb-6">Möchten Sie wirklich den gesamten Entnahme-Verlauf löschen? Diese Aktion kann nicht rückgängig gemacht werden.</p>
+<div class="flex justify-end gap-3">
+<button class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300" id="cancelDelete">
+                    Abbrechen
+                </button>
+<button class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700" id="confirmDelete">
+                    Löschen
+                </button>
+</div>
+</div>
 </div>
 <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50" id="warningMengeDialog">
-    <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-        <h3 class="text-xl font-bold text-gray-800 mb-4">Warnung</h3>
-        <p class="text-gray-600 mb-6" id="warningMengeText">Mengenangabe in Zeile X fehlt! Trotzdem übertragen?</p>
-        <div class="flex justify-end gap-3">
-            <button class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300" id="cancelWarningMenge">Abbrechen</button>
-            <button class="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700" id="confirmWarningMenge">Trotzdem übertragen</button>
-        </div>
-    </div>
+<div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+<h3 class="text-xl font-bold text-gray-800 mb-4">Warnung</h3>
+<p class="text-gray-600 mb-6" id="warningMengeText">Mengenangabe in Zeile X fehlt! Trotzdem übertragen?</p>
+<div class="flex justify-end gap-3">
+<button class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300" id="cancelWarningMenge">
+                    Abbrechen
+                </button>
+<button class="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700" id="confirmWarningMenge">
+                    Trotzdem übertragen
+                </button>
+</div>
+</div>
 </div>
 <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50" id="warningKostenDialog">
-    <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-        <h3 class="text-xl font-bold text-gray-800 mb-4">Warnung</h3>
-        <p class="text-gray-600 mb-6">Kostenstelle, Auftrag oder Projekt-Nr. fehlt! Trotzdem übertragen?</p>
-        <div class="flex justify-end gap-3">
-            <button class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300" id="cancelWarningKosten">Abbrechen</button>
-            <button class="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700" id="confirmWarningKosten">Trotzdem übertragen</button>
-        </div>
-    </div>
+<div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+<h3 class="text-xl font-bold text-gray-800 mb-4">Warnung</h3>
+<p class="text-gray-600 mb-6">Kostenstelle, Auftrag oder Projekt-Nr. fehlt! Trotzdem übertragen?</p>
+<div class="flex justify-end gap-3">
+<button class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300" id="cancelWarningKosten">
+                    Abbrechen
+                </button>
+<button class="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700" id="confirmWarningKosten">
+                    Trotzdem übertragen
+                </button>
+</div>
+</div>
 </div>
 <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50" id="sapTransferDialog">
-    <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-        <h3 class="text-xl font-bold text-gray-800 mb-4">SAP Übertragung</h3>
-        <p class="text-gray-600 mb-4">Übertrage Daten in SAP (MIGO - Warenausgang)...</p>
-        <div class="w-full bg-gray-200 rounded-full h-2.5 mb-6"><div class="bg-blue-600 h-2.5 rounded-full" id="sapTransferProgress" style="width: 0%"></div></div>
-        <div class="text-sm text-gray-600 mb-4" id="sapTransferStatus">Initialisiere Übertragung...</div>
-        <div class="flex justify-end"><button class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 hidden" id="closeSapDialog">Schließen</button></div>
-    </div>
+<div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+<h3 class="text-xl font-bold text-gray-800 mb-4">SAP Übertragung</h3>
+<p class="text-gray-600 mb-4">Übertrage Daten in SAP (MIGO - Warenausgang)...</p>
+<div class="w-full bg-gray-200 rounded-full h-2.5 mb-6">
+<div class="bg-blue-600 h-2.5 rounded-full" id="sapTransferProgress" style="width: 0%"></div>
 </div>
-
+<div class="text-sm text-gray-600 mb-4" id="sapTransferStatus">Initialisiere Übertragung...</div>
+<div class="flex justify-end">
+<button class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 hidden" id="closeSapDialog">
+                    Schließen
+                </button>
+</div>
+</div>
+</div>
 <div class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center hidden z-50" id="barcodeScannerDialog">
-    <div class="bg-white rounded-lg p-4 max-w-lg w-full mx-4 relative">
-        <h3 class="text-xl font-bold text-gray-800 mb-4">Barcode scannen</h3>
-        <button class="absolute top-3 right-3 text-gray-600 hover:text-gray-900 text-2xl" id="closeScannerDialog">×</button>
-        <div class="w-full h-64 md:h-80 relative bg-gray-800 rounded-md overflow-hidden" id="scanner-container">
-            <video id="qr-video" playsinline class="w-full h-full"></video>
-            <div class="scanner-overlay">
-                <div class="laser-line"></div>
-            </div>
-            <canvas class="absolute inset-0 w-full h-full" id="qr-canvas" style="display: none;"></canvas>
-        </div>
-        <p class="mt-4 text-gray-700 text-center" id="scanner-status">Kamera wird gestartet...</p>
-    </div>
+<div class="bg-white rounded-lg p-4 max-w-lg w-full mx-4 relative">
+<h3 class="text-xl font-bold text-gray-800 mb-4">Barcode scannen</h3>
+<button class="absolute top-3 right-3 text-gray-600 hover:text-gray-900 text-2xl" id="closeScannerDialog">×</button>
+<div class="w-full h-64 md:h-80 relative bg-gray-800 rounded-md overflow-hidden" id="scanner-container">
+<video class="w-full h-full object-cover" id="qr-video"></video>
+<canvas class="absolute inset-0 w-full h-full" id="qr-canvas" style="display: none;"></canvas>
 </div>
+<p class="mt-4 text-gray-700 text-center" id="scanner-status">Kamera wird gestartet...</p>
+</div>
+</div>
+<script>
+        // Globale Variablen
+        let materialDatabase = {
+            primary: {}, // Primäre Materialnummern -> {beschreibung, alternativeNr}
+            alternative: {} // Alternative Materialnummern -> primäreNr
+        };
+        let normalHistoryData = []; 
+        let clarificationCasesData = []; 
+        const ADMIN_PIN = "100400#x"; // Admin PIN-Code
+        let pendingSubmitData = null; // Für die Warndialoge
+        let isInAdminMode = false; // Track admin mode state
 
+        // Barcode Scanner Variablen
+        let codeReader = null; // Instanz des ZXing CodeReader
+        let currentMaterialInput = null; // Speichert das Input-Feld, das gerade gescannt werden soll
 
-<script src="script.js"></script>
+        // Datum und Uhrzeit aktualisieren
+        function updateDateTime() {
+            const now = new Date();
+            const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('current-date').textContent = now.toLocaleDateString('de-DE', dateOptions);
+            document.getElementById('current-time').textContent = now.toLocaleTimeString('de-DE');
+        }
+        
+        // Initialisierung
+        document.addEventListener('DOMContentLoaded', function() {
+            updateDateTime();
+            setInterval(updateDateTime, 1000);
+            
+            // Heutiges Datum als Standardwert setzen
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('entnahmedatum').value = today;
+            
+            // Gespeicherte Daten laden
+            loadAllData();
+            
+            // Material-Datenbank hochladen
+            document.getElementById('uploadBtn').addEventListener('click', uploadMaterialDatabase);
+            
+            // Material-Nummer-Eingabe-Event für automatische Beschreibung und Enter-Taste
+            document.querySelectorAll('.material-input').forEach(input => {
+                input.addEventListener('blur', function() { checkMaterialNumber(this); });
+                input.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        checkMaterialNumber(this);
+                        const rowNumber = parseInt(this.name.split('_')[1]);
+                        const meDropdown = document.querySelector(`[name="me_${rowNumber}"]`).parentElement;
+                        meDropdown.classList.add('show');
+                        meDropdown.querySelector('input').focus();
+                    }
+                });
+            });
+            
+            // Beschreibungs-Feld-Events
+            document.querySelectorAll('.description-field').forEach(input => {
+                input.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const rowNumber = parseInt(this.name.split('_')[1]);
+                        const meDropdown = document.querySelector(`[name="me_${rowNumber}"]`).parentElement;
+                        meDropdown.classList.add('show');
+                        meDropdown.querySelector('input').focus();
+                    }
+                });
+            });
+            
+            // Mengeneinheit-Dropdown-Funktionalität (per Klick)
+            document.querySelectorAll('.me-dropdown-content div').forEach(option => {
+                option.addEventListener('click', function() {
+                    const value = this.getAttribute('data-value');
+                    const text = this.getAttribute('data-text');
+                    const dropdown = this.closest('.me-dropdown');
+                    const inputField = dropdown.querySelector('.me-input');
+                    inputField.value = value;
+                    inputField.setAttribute('data-text', text);
+                    dropdown.classList.remove('show');
+                    this.parentElement.querySelectorAll('.highlighted').forEach(h => h.classList.remove('highlighted'));
+                    const rowNumber = parseInt(inputField.name.split('_')[1]);
+                    document.querySelector(`[name="menge_${rowNumber}"]`).focus();
+                });
+            });
+            
+            // Menge-Eingabe-Events
+            document.querySelectorAll('.menge-input').forEach(input => {
+                input.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const rowNumber = parseInt(this.name.split('_')[1]);
+                        findNextEmptyMaterialRow(rowNumber);
+                    }
+                });
+            });
 
+            // Event-Listener für die ME-Eingabefelder (Tastatur & Klick)
+            document.querySelectorAll('.me-input').forEach(input => {
+                const handleMEInput = (meInputField) => {
+                    const value = meInputField.value.trim();
+                    meInputField.classList.remove('error');
+                    if (value === '') { meInputField.setAttribute('data-text', ''); return true; }
+                    const option = meInputField.nextElementSibling.querySelector(`[data-value="${value}"]`);
+                    if (option) { meInputField.setAttribute('data-text', option.getAttribute('data-text')); return true; } 
+                    else { meInputField.value = ''; meInputField.setAttribute('data-text', ''); meInputField.classList.add('error'); return false; }
+                };
+                input.addEventListener('click', function() {
+                    const currentDropdown = this.parentElement;
+                    document.querySelectorAll('.me-dropdown.show').forEach(d => { if (d !== currentDropdown) d.classList.remove('show'); });
+                    currentDropdown.classList.toggle('show');
+                });
+                input.addEventListener('keydown', function(e) {
+                    const dropdown = this.parentElement;
+                    const dropdownContent = dropdown.querySelector('.me-dropdown-content');
+                    if (e.key !== 'Tab' && !dropdown.classList.contains('show')) {
+                         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); dropdown.classList.add('show'); }
+                    }
+                    const options = Array.from(dropdownContent.querySelectorAll('div'));
+                    if (options.length === 0) return;
+                    const highlightedIndex = options.findIndex(opt => opt.classList.contains('highlighted'));
+                    switch (e.key) {
+                        case 'ArrowDown':
+                            e.preventDefault();
+                            if (highlightedIndex < options.length - 1) {
+                                if (highlightedIndex > -1) options[highlightedIndex].classList.remove('highlighted');
+                                const newIndex = highlightedIndex + 1;
+                                options[newIndex].classList.add('highlighted');
+                                options[newIndex].scrollIntoView({ block: 'nearest' });
+                            }
+                            break;
+                        case 'ArrowUp':
+                            e.preventDefault();
+                            if (highlightedIndex > 0) {
+                                options[highlightedIndex].classList.remove('highlighted');
+                                const newIndex = highlightedIndex - 1;
+                                options[newIndex].classList.add('highlighted');
+                                options[newIndex].scrollIntoView({ block: 'nearest' });
+                            }
+                            break;
+                        case 'Enter':
+                            e.preventDefault();
+                            if (highlightedIndex > -1) { options[highlightedIndex].click(); } 
+                            else {
+                                if (handleMEInput(this)) {
+                                    dropdown.classList.remove('show');
+                                    const rowNumber = parseInt(this.name.split('_')[1]);
+                                    document.querySelector(`[name="menge_${rowNumber}"]`).focus();
+                                }
+                            }
+                            break;
+                        case 'Escape': e.preventDefault(); dropdown.classList.remove('show'); break;
+                    }
+                });
+                input.addEventListener('blur', function() { handleMEInput(this); });
+            });
+            
+            // Formular zurücksetzen Button
+            document.getElementById('clearForm').addEventListener('click', resetForm);
+            
+            // Formular absenden
+            document.getElementById('entnahmeForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                let hasAtLeastOneValidRow = false;
+                for (let i = 1; i <= 8; i++) {
+                    const materialInput = document.querySelector(`[name="material_${i}"]`);
+                    const mengeInput = document.querySelector(`[name="menge_${i}"]`);
+                    const descriptionInput = document.querySelector(`[name="description_${i}"]`);
+                    // Check if any part of the row is filled, and if so, quantity must be filled
+                    if (mengeInput.value.trim() !== '' || materialInput.value.trim() !== '' || descriptionInput.value.trim() !== '') {
+                        if (mengeInput.value.trim() !== '') {
+                             hasAtLeastOneValidRow = true;
+                        }
+                    }
+                }
+
+                if (!hasAtLeastOneValidRow) {
+                    alert('Fehler: Es muss mindestens eine Zeile mit Menge ausgefüllt sein, um die Entnahme zu bestätigen.');
+                    return;
+                }
+
+                const validationResult = validateForm();
+                if (validationResult.missingMenge.length > 0) {
+                    const warningText = `Mengenangabe in Zeile ${validationResult.missingMenge.join(', ')} fehlt! Trotzdem übertragen?`;
+                    document.getElementById('warningMengeText').textContent = warningText;
+                    document.getElementById('warningMengeDialog').classList.remove('hidden');
+                    pendingSubmitData = { type: 'menge', data: collectFormData() };
+                    return;
+                }
+                if (validationResult.missingKosten) {
+                    document.getElementById('warningKostenDialog').classList.remove('hidden');
+                    pendingSubmitData = { type: 'kosten', data: collectFormData() };
+                    return;
+                }
+                submitForm(collectFormData());
+            });
+            
+            // Dialog-Handler
+            document.getElementById('closeDialog').addEventListener('click', () => document.getElementById('confirmationDialog').classList.add('hidden'));
+            document.getElementById('cancelWarningMenge').addEventListener('click', () => { document.getElementById('warningMengeDialog').classList.add('hidden'); pendingSubmitData = null; });
+            document.getElementById('confirmWarningMenge').addEventListener('click', () => {
+                document.getElementById('warningMengeDialog').classList.add('hidden');
+                if (pendingSubmitData && pendingSubmitData.type === 'menge') { submitForm(pendingSubmitData.data); }
+                pendingSubmitData = null;
+            });
+            document.getElementById('cancelWarningKosten').addEventListener('click', () => { document.getElementById('warningKostenDialog').classList.add('hidden'); pendingSubmitData = null; });
+            document.getElementById('confirmWarningKosten').addEventListener('click', () => {
+                document.getElementById('warningKostenDialog').classList.add('hidden');
+                if (pendingSubmitData && pendingSubmitData.type === 'kosten') { submitForm(pendingSubmitData.data); }
+                pendingSubmitData = null;
+            });
+
+            // Normal History Buttons
+            document.getElementById('exportNormalHistoryBtn').addEventListener('click', exportNormalHistoryToCSV);
+            document.getElementById('clearNormalHistoryBtn').addEventListener('click', () => {
+                document.getElementById('deleteConfirmDialog').classList.remove('hidden');
+                document.getElementById('confirmDelete').onclick = () => { // Overwrite confirm behavior
+                    normalHistoryData = [];
+                    saveAllData();
+                    updateNormalHistoryTable();
+                    document.getElementById('deleteConfirmDialog').classList.add('hidden');
+                };
+            });
+
+            // Clarification Cases Buttons
+            document.getElementById('exportClarificationCasesBtn').addEventListener('click', exportClarificationCasesToCSV);
+            document.getElementById('clearClarificationCasesBtn').addEventListener('click', () => {
+                document.getElementById('deleteConfirmDialog').classList.remove('hidden');
+                document.getElementById('confirmDelete').onclick = () => { // Overwrite confirm behavior
+                    clarificationCasesData = [];
+                    saveAllData();
+                    updateClarificationCasesTable();
+                    document.getElementById('deleteConfirmDialog').classList.add('hidden');
+                };
+            });
+
+            document.getElementById('cancelDelete').addEventListener('click', () => document.getElementById('deleteConfirmDialog').classList.add('hidden'));
+            
+            document.getElementById('cancelPin').addEventListener('click', () => {
+                document.getElementById('pinDialog').classList.add('hidden');
+                document.getElementById('pinInput').value = '';
+                document.getElementById('pinError').classList.add('hidden');
+            });
+            document.getElementById('submitPin').addEventListener('click', checkPin);
+            document.getElementById('pinInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); checkPin(); } });
+            
+            // Menu Item Listeners
+            document.getElementById('terminalMenuItem').addEventListener('click', () => {
+                setActiveMenuItem('terminalMenuItem');
+            });
+
+            document.getElementById('adminMenuItem').addEventListener('click', () => {
+                if (!isInAdminMode) {
+                    document.getElementById('pinDialog').classList.remove('hidden');
+                    document.getElementById('pinInput').focus();
+                } else {
+                    setActiveMenuItem('adminMenuItem'); // Already in admin mode, just switch to main admin panel
+                }
+            });
+
+            // Admin panel specific button listeners
+            document.getElementById('showNormalHistoryAdminBtn').addEventListener('click', () => {
+                // Ensure terminal is hidden, and only switch between admin sub-panels
+                document.querySelector('.terminal-container').style.display = 'none'; 
+                document.querySelector('.admin-panel').style.display = 'block'; // Keep admin-panel container visible
+                document.querySelector('.admin-panel .p-6').style.display = 'none'; // Hide main admin content
+                document.querySelector('.history-panel').style.display = 'block'; // Show history panel
+                document.querySelector('.clarification-cases-panel').style.display = 'none'; // Ensure clarification is hidden
+                document.getElementById('backToAdminPanelBtn').classList.remove('hidden'); // Show back button
+                updateNormalHistoryTable();
+            });
+
+            document.getElementById('showClarificationCasesAdminBtn').addEventListener('click', () => {
+                // Ensure terminal is hidden, and only switch between admin sub-panels
+                document.querySelector('.terminal-container').style.display = 'none';
+                document.querySelector('.admin-panel').style.display = 'block'; // Keep admin-panel container visible
+                document.querySelector('.admin-panel .p-6').style.display = 'none'; // Hide main admin content
+                document.querySelector('.clarification-cases-panel').style.display = 'block'; // Show clarification panel
+                document.querySelector('.history-panel').style.display = 'none'; // Ensure history is hidden
+                document.getElementById('backToAdminPanelBtn').classList.remove('hidden'); // Show back button
+                updateClarificationCasesTable();
+            });
+
+            document.getElementById('backToAdminPanelBtn').addEventListener('click', () => {
+                document.querySelector('.admin-panel .p-6').style.display = 'block'; // Show main admin content
+                document.querySelector('.history-panel').style.display = 'none'; // Hide history panel
+                document.querySelector('.clarification-cases-panel').style.display = 'none'; // Hide clarification panel
+                document.getElementById('backToAdminPanelBtn').classList.add('hidden'); // Hide back button
+            });
+
+            // Default view on load
+            setActiveMenuItem('terminalMenuItem');
+
+            // Close scanner dialog
+            document.getElementById('closeScannerDialog').addEventListener('click', closeBarcodeScanner);
+        });
+        
+        function findNextEmptyMaterialRow(currentRow) {
+            let nextRow = currentRow;
+            while (nextRow < 8) {
+                nextRow++;
+                const materialInput = document.querySelector(`[name="material_${nextRow}"]`);
+                const descriptionInput = document.querySelector(`[name="description_${nextRow}"]`);
+                const mengeInput = document.querySelector(`[name="menge_${nextRow}"]`);
+                if (!materialInput.value && !descriptionInput.value && !mengeInput.value) { // Check if row is entirely empty
+                    materialInput.focus();
+                    return;
+                }
+            }
+            document.querySelector('[name="material_1"]').focus();
+        }
+        
+        function checkPin() {
+            const pinInput = document.getElementById('pinInput');
+            if (pinInput.value === ADMIN_PIN) {
+                document.getElementById('pinDialog').classList.add('hidden');
+                pinInput.value = '';
+                document.getElementById('pinError').classList.add('hidden');
+                isInAdminMode = true; // Set admin mode to true
+                setActiveMenuItem('adminMenuItem'); // Show admin panel
+            } else {
+                document.getElementById('pinError').classList.remove('hidden');
+                pinInput.value = '';
+                pinInput.focus();
+            }
+        }
+        
+        function setActiveMenuItem(itemId) {
+            document.querySelectorAll('.menu-item').forEach(item => item.classList.remove('active'));
+            document.getElementById(itemId).classList.add('active');
+
+            const terminalPanel = document.querySelector('.terminal-container');
+            const adminPanel = document.querySelector('.admin-panel');
+            const historyPanel = document.querySelector('.history-panel');
+            const clarificationCasesPanel = document.querySelector('.clarification-cases-panel');
+            const backToAdminPanelBtn = document.getElementById('backToAdminPanelBtn');
+
+            // Hide all panels initially
+            terminalPanel.style.display = 'none';
+            adminPanel.style.display = 'none';
+            historyPanel.style.display = 'none';
+            clarificationCasesPanel.style.display = 'none';
+            backToAdminPanelBtn.classList.add('hidden'); // Hide back button by default
+
+            if (itemId === 'terminalMenuItem') {
+                isInAdminMode = false; // Exit admin mode
+                terminalPanel.style.display = 'block';
+            } else if (itemId === 'adminMenuItem') {
+                // If we are in admin mode, show the admin panel's main content
+                // and ensure history/clarification sub-panels are hidden.
+                // The checkPin function handles setting isInAdminMode and then calling this.
+                adminPanel.style.display = 'block';
+                adminPanel.querySelector('.p-6').style.display = 'block'; // Show main admin content
+                historyPanel.style.display = 'none'; 
+                clarificationCasesPanel.style.display = 'none';
+            }
+        }
+        
+        function checkMaterialNumber(inputElement) {
+            const rowNumber = inputElement.name.split('_')[1];
+            const descriptionField = document.querySelector(`[name="description_${rowNumber}"]`);
+            const primaryField = document.querySelector(`[name="primary_material_${rowNumber}"]`);
+            descriptionField.classList.remove('auto-filled', 'error');
+            if (inputElement.value) {
+                const materialNr = inputElement.value.trim();
+                if (materialDatabase.primary[materialNr]) {
+                    descriptionField.value = materialDatabase.primary[materialNr].beschreibung;
+                    descriptionField.classList.add('auto-filled');
+                    primaryField.value = materialNr;
+                } else if (materialDatabase.alternative[materialNr]) {
+                    const primaryNr = materialDatabase.alternative[materialNr];
+                    descriptionField.value = materialDatabase.primary[primaryNr].beschreibung;
+                    descriptionField.classList.add('auto-filled');
+                    primaryField.value = primaryNr;
+                } else {
+                    descriptionField.value = "SAP Nummer existiert nicht";
+                    descriptionField.classList.add('error');
+                    primaryField.value = '';
+                }
+            } else { primaryField.value = ''; descriptionField.value = ''; } // Clear description if material number is cleared
+        }
+        
+        function uploadMaterialDatabase() {
+            const fileInput = document.getElementById('materialFile');
+            const file = fileInput.files[0];
+            if (!file) { alert('Bitte wählen Sie eine CSV-Datei aus.'); return; }
+            const statusElement = document.getElementById('databaseStatus');
+            statusElement.textContent = 'Status: Datei wird verarbeitet...';
+            Papa.parse(file, {
+                delimiter: ';', header: false, skipEmptyLines: true,
+                complete: function(results) {
+                    try {
+                        materialDatabase = { primary: {}, alternative: {} };
+                        const startIndex = (results.data[0] && (results.data[0][0].toLowerCase().includes('material') || results.data[0][0].toLowerCase().includes('nummer'))) ? 1 : 0;
+                        let materialCount = 0, alternativeCount = 0;
+                        for (let i = startIndex; i < results.data.length; i++) {
+                            if (results.data[i].length >= 3) {
+                                const primaryNr = results.data[i][0].trim();
+                                const alternativeNr = results.data[i][1] ? results.data[i][1].trim() : '';
+                                const beschreibung = results.data[i][2] ? results.data[i][2].trim() : '';
+                                if (primaryNr && beschreibung) {
+                                    materialDatabase.primary[primaryNr] = { beschreibung: beschreibung, alternativeNr: alternativeNr || null };
+                                    materialCount++;
+                                    if (alternativeNr) { materialDatabase.alternative[alternativeNr] = primaryNr; alternativeCount++; }
+                                }
+                            }
+                        }
+                        statusElement.textContent = `Status: ${materialCount} Materialien geladen (${alternativeCount} mit alternativer Nummer)`;
+                        localStorage.setItem('materialDatabase', JSON.stringify(materialDatabase));
+                    } catch (error) { statusElement.textContent = 'Status: Fehler beim Verarbeiten der Datei'; console.error(error); }
+                },
+                error: function(err) { statusElement.textContent = 'Status: Fehler beim Lesen der Datei'; console.error(err); }
+            });
+        }
+        
+        function loadAllData() {
+            const savedDatabase = localStorage.getItem('materialDatabase');
+            if (savedDatabase) {
+                try {
+                    materialDatabase = JSON.parse(savedDatabase);
+                    const primaryCount = Object.keys(materialDatabase.primary).length;
+                    const alternativeCount = Object.keys(materialDatabase.alternative).length;
+                    document.getElementById('databaseStatus').textContent = `Status: ${primaryCount} Materialien geladen (${alternativeCount} mit alternativer Nummer)`;
+                } catch (e) { console.error("Error loading material database:", e); }
+            }
+            const savedNormalHistory = localStorage.getItem('normalEntnahmeHistory');
+            if (savedNormalHistory) { try { normalHistoryData = JSON.parse(savedNormalHistory); updateNormalHistoryTable(); } catch (e) { console.error("Error loading normal history:", e); } }
+            const savedClarificationCases = localStorage.getItem('clarificationCases');
+            if (savedClarificationCases) { try { clarificationCasesData = JSON.parse(savedClarificationCases); updateClarificationCasesTable(); } catch (e) { console.error("Error loading clarification cases:", e); } }
+        }
+        
+        function saveAllData() {
+            localStorage.setItem('normalEntnahmeHistory', JSON.stringify(normalHistoryData));
+            localStorage.setItem('clarificationCases', JSON.stringify(clarificationCasesData));
+        }
+        
+        function validateForm() {
+            const result = { missingMenge: [], missingKosten: false };
+            let hasAnyFilledField = false; // To check if the row is intended to be filled at all
+            for (let i = 1; i <= 8; i++) {
+                const materialNrInput = document.querySelector(`[name="material_${i}"]`);
+                const mengeInput = document.querySelector(`[name="menge_${i}"]`);
+                const descriptionInput = document.querySelector(`[name="description_${i}"]`);
+
+                // If any field in the row has content, then Menge is mandatory for that row
+                if ((materialNrInput.value.trim() !== '' || descriptionInput.value.trim() !== '') && mengeInput.value.trim() === '') {
+                    result.missingMenge.push(i);
+                }
+            }
+            const kostenstelle = document.getElementById('kostenstelle').value.trim();
+            const auftrag = document.getElementById('auftrag').value.trim();
+            const projektnr = document.getElementById('projektnr').value.trim();
+            if (!kostenstelle && !auftrag && !projektnr) { result.missingKosten = true; }
+            return result;
+        }
+        
+        function collectFormData() {
+            const materialien = [];
+            for (let i = 1; i <= 8; i++) {
+                const materialNrInput = document.querySelector(`[name="material_${i}"]`);
+                const primaryNrInput = document.querySelector(`[name="primary_material_${i}"]`);
+                const beschreibungInput = document.querySelector(`[name="description_${i}"]`);
+                const mengeInput = document.querySelector(`[name="menge_${i}"]`);
+                const meInput = document.querySelector(`[name="me_${i}"]`);
+
+                const materialNr = materialNrInput.value.trim(); // Raw user input
+                const primaryNrFromLookup = primaryNrInput.value.trim(); // Validated primary material number from database
+                const beschreibung = beschreibungInput.value.trim();
+                const menge = mengeInput.value.trim(); // Get as string for check
+
+                // Only add row if at least material number or description or quantity is provided
+                if (materialNr !== '' || beschreibung !== '' || menge !== '') {
+                    materialien.push({
+                        materialNr: primaryNrFromLookup, // Use the validated primary material number
+                        eingabeNr: materialNr, // Keep the original input for display/debug
+                        beschreibung: beschreibung,
+                        menge: menge !== '' ? parseInt(menge) : 0, // Convert to number, or 0 if empty
+                        me: { code: meInput.value, text: meInput.getAttribute('data-text') || '' }
+                    });
+                }
+            }
+            return {
+                mitarbeiter: document.getElementById('mitarbeiter').value,
+                entnahmedatum: document.getElementById('entnahmedatum').value,
+                vorgesetzter: document.getElementById('vorgesetzter').value.trim(),
+                kostenstelle: document.getElementById('kostenstelle').value.trim(),
+                auftrag: document.getElementById('auftrag').value.trim(),
+                projektnr: document.getElementById('projektnr').value.trim(),
+                materialien
+            };
+        }
+
+        function isClarificationCase(formData) {
+            const kostenstelle = formData.kostenstelle;
+            const auftrag = formData.auftrag;
+            const regex = /[a-zA-Z]/; // Check for any letter
+
+            // Existing logic: Check for letters in Kostenstelle or Auftrag
+            if (regex.test(kostenstelle) || regex.test(auftrag)) {
+                return true;
+            }
+
+            // NEW logic: Check if any material line item is missing a valid material number
+            for (const material of formData.materialien) {
+                // material.materialNr contains the validated primary material number or is empty if not found
+                // If material.materialNr is empty, it means no valid SAP number was found/provided
+                if (!material.materialNr && (material.eingabeNr !== '' || material.beschreibung !== '')) { // Only flag if material number was entered or description exists, but not found
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        function submitForm(formData) {
+            if (isClarificationCase(formData)) {
+                clarificationCasesData.unshift({ timestamp: new Date().toISOString(), ...formData });
+            } else {
+                normalHistoryData.unshift({ timestamp: new Date().toISOString(), ...formData });
+            }
+            saveAllData();
+            resetForm();
+            document.getElementById('confirmationDialog').classList.remove('hidden');
+            updateNormalHistoryTable();
+            updateClarificationCasesTable();
+        }
+        
+        function resetForm() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('entnahmeForm').reset();
+            document.getElementById('entnahmedatum').value = today;
+            document.querySelectorAll('.description-field, .me-input').forEach(f => f.classList.remove('auto-filled', 'error'));
+            document.querySelectorAll('input[name^="primary_material_"]').forEach(f => { f.value = ''; });
+            document.querySelectorAll('.me-input').forEach(f => { f.value = ''; f.removeAttribute('data-text'); });
+        }
+        
+        function updateNormalHistoryTable() {
+            const tbody = document.getElementById('normalHistoryList');
+            tbody.innerHTML = '';
+            const emptyHistory = document.getElementById('emptyNormalHistory');
+            if (normalHistoryData.length === 0) { emptyHistory.classList.remove('hidden'); } 
+            else {
+                emptyHistory.classList.add('hidden');
+                normalHistoryData.forEach((entry, index) => {
+                    const row = document.createElement('tr');
+                    const materialText = entry.materialien.map(m => {
+                        let text = m.materialNr ? (m.beschreibung ? `${m.materialNr} - ${m.beschreibung}` : m.materialNr) : (m.eingabeNr || m.beschreibung); // Fallback to entered number/description
+                        if (m.menge) { text += ` (${m.menge}${m.me && m.me.text ? ` ${m.me.text}` : ''})`; }
+                        return text;
+                    }).join('<br>');
+                    const formattedDate = new Date(entry.entnahmedatum).toLocaleDateString('de-DE');
+                    let kostenInfo = [];
+                    if (entry.kostenstelle) kostenInfo.push(`Kostenstelle: ${entry.kostenstelle}`);
+                    if (entry.auftrag) kostenInfo.push(`Auftrag: ${entry.auftrag}`);
+                    if (entry.projektnr) kostenInfo.push(`Projekt: ${entry.projektnr}`);
+                    const kostenText = kostenInfo.length > 0 ? `<br><small>${kostenInfo.join(', ')}</small>` : '';
+                    const vorgesetzterText = entry.vorgesetzter ? `<br><small>Vorgesetzter: ${entry.vorgesetzter}</small>` : '';
+
+                    row.innerHTML = `
+                        <td class="px-4 py-3" data-label="Datum">${formattedDate}</td>
+                        <td class="px-4 py-3" data-label="Mitarbeiter">${entry.mitarbeiter}${vorgesetzterText}${kostenText}</td>
+                        <td class="px-4 py-3" data-label="Materialien">${materialText}</td>
+                        <td class="px-4 py-3" data-label="Aktionen">
+                            <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+                                <button type="button" class="px-3 py-1 bg-yellow-500 hover:bg-yellow-600 text-white text-xs rounded" 
+                                    onclick="editEntry(${index}, 'normal')">
+                                    Bearbeiten
+                                </button>
+                                <button type="button" class="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded" 
+                                    onclick="deleteEntry(${index}, 'normal')">
+                                    Löschen
+                                </button>
+                            </div>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+        }
+
+        function updateClarificationCasesTable() {
+            const tbody = document.getElementById('clarificationCasesList');
+            tbody.innerHTML = '';
+            const emptyHistory = document.getElementById('emptyClarificationCases');
+            if (clarificationCasesData.length === 0) { emptyHistory.classList.remove('hidden'); } 
+            else {
+                emptyHistory.classList.add('hidden');
+                clarificationCasesData.forEach((entry, index) => {
+                    const row = document.createElement('tr');
+                    const materialText = entry.materialien.map(m => {
+                        let text = m.materialNr ? (m.beschreibung ? `${m.materialNr} - ${m.beschreibung}` : m.materialNr) : (m.eingabeNr || m.beschreibung); // Fallback to entered number/description
+                        if (m.menge) { text += ` (${m.menge}${m.me && m.me.text ? ` ${m.me.text}` : ''})`; }
+                        return text;
+                    }).join('<br>');
+                    const formattedDate = new Date(entry.entnahmedatum).toLocaleDateString('de-DE');
+                    let kostenInfo = [];
+                    if (entry.kostenstelle) kostenInfo.push(`Kostenstelle: ${entry.kostenstelle}`);
+                    if (entry.auftrag) kostenInfo.push(`Auftrag: ${entry.auftrag}`);
+                    if (entry.projektnr) kostenInfo.push(`Projekt: ${entry.projektnr}`);
+                    const kostenText = kostenInfo.length > 0 ? `<br><small>${kostenInfo.join(', ')}</small>` : '';
+                    const vorgesetzterText = entry.vorgesetzter ? `<br><small>Vorgesetzter: ${entry.vorgesetzter}</small>` : '';
+
+                    row.innerHTML = `
+                        <td class="px-4 py-3" data-label="Datum">${formattedDate}</td>
+                        <td class="px-4 py-3" data-label="Mitarbeiter">${entry.mitarbeiter}${vorgesetzterText}${kostenText}</td>
+                        <td class="px-4 py-3" data-label="Materialien">${materialText}</td>
+                        <td class="px-4 py-3" data-label="Aktionen">
+                            <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+                                <button type="button" class="px-3 py-1 bg-yellow-500 hover:bg-yellow-600 text-white text-xs rounded" 
+                                    onclick="editEntry(${index}, 'clarification')">
+                                    Bearbeiten
+                                </button>
+                                <button type="button" class="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded" 
+                                    onclick="deleteEntry(${index}, 'clarification')">
+                                    Löschen
+                                </button>
+                            </div>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+        }
+        
+        function editEntry(index, type) {
+            const dataToEdit = type === 'normal' ? normalHistoryData : clarificationCasesData;
+            const entry = dataToEdit[index];
+            if (!entry) return;
+
+            resetForm();
+
+            document.getElementById('mitarbeiter').value = entry.mitarbeiter;
+            document.getElementById('entnahmedatum').value = entry.entnahmedatum;
+            document.getElementById('vorgesetzter').value = entry.vorgesetzter || '';
+            document.getElementById('kostenstelle').value = entry.kostenstelle;
+            document.getElementById('auftrag').value = entry.auftrag;
+            document.getElementById('projektnr').value = entry.projektnr;
+
+            entry.materialien.forEach((material, i) => {
+                const rowNum = i + 1;
+                if (rowNum > 8) return; 
+
+                document.querySelector(`[name="material_${rowNum}"]`).value = material.eingabeNr;
+                document.querySelector(`[name="primary_material_${rowNum}"]`).value = material.materialNr;
+                document.querySelector(`[name="description_${rowNum}"]`).value = material.beschreibung;
+                const meInput = document.querySelector(`[name="me_${rowNum}"]`);
+                meInput.value = material.me.code;
+                meInput.setAttribute('data-text', material.me.text);
+                document.querySelector(`[name="menge_${rowNum}"]`).value = material.menge || '';
+            });
+
+            dataToEdit.splice(index, 1);
+            saveAllData();
+            updateNormalHistoryTable(); // Update both tables to reflect removal
+            updateClarificationCasesTable();
+
+            setActiveMenuItem('terminalMenuItem');
+        }
+
+        function deleteEntry(index, type) {
+            if (confirm('Wollen Sie diesen Eintrag wirklich löschen?')) {
+                const dataToDeleteFrom = type === 'normal' ? normalHistoryData : clarificationCasesData;
+                dataToDeleteFrom.splice(index, 1);
+                saveAllData();
+                updateNormalHistoryTable();
+                updateClarificationCasesTable();
+            }
+        }
+        
+        function exportNormalHistoryToCSV() {
+            if (normalHistoryData.length === 0) { alert('Keine Daten zum Exportieren vorhanden.'); return; }
+            let csvContent = 'Datum;Mitarbeiter;Vorgesetzter;Kostenstelle;Auftrag;Projekt-Nr;Material-Nr;Beschreibung;ME;Menge\n';
+            normalHistoryData.forEach(entry => {
+                const dateStr = new Date(entry.entnahmedatum).toLocaleDateString('de-DE');
+                entry.materialien.forEach(m => {
+                    const meText = m.me && m.me.text ? m.me.text : '';
+                    csvContent += `${dateStr};${entry.mitarbeiter};${entry.vorgesetzter || ''};${entry.kostenstelle || ''};${entry.auftrag || ''};${entry.projektnr || ''};${m.materialNr || ''};${m.beschreibung || ''};${meText};${m.menge || ''}\n`;
+                });
+            });
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `entnahme_verlauf.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function exportClarificationCasesToCSV() {
+            if (clarificationCasesData.length === 0) { alert('Keine Klärungsfälle zum Exportieren vorhanden.'); return; }
+            let csvContent = 'Datum;Mitarbeiter;Vorgesetzter;Kostenstelle;Auftrag;Projekt-Nr;Material-Nr;Beschreibung;ME;Menge\n';
+            clarificationCasesData.forEach(entry => {
+                const dateStr = new Date(entry.entnahmedatum).toLocaleDateString('de-DE');
+                entry.materialien.forEach(m => {
+                    const meText = m.me && m.me.text ? m.me.text : '';
+                    csvContent += `${dateStr};${entry.mitarbeiter};${entry.vorgesetzter || ''};${entry.kostenstelle || ''};${entry.auftrag || ''};${entry.projektnr || ''};${m.materialNr || ''};${m.beschreibung || ''};${meText};${m.menge || ''}\n`;
+                });
+            });
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `klaerungsfaelle.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // --- START: KORRIGIERTER BEREICH ---
+        
+        async function openBarcodeScanner(rowNumber) {
+            currentMaterialInput = document.querySelector(`[name="material_${rowNumber}"]`);
+            const scannerDialog = document.getElementById('barcodeScannerDialog');
+            const qrVideo = document.getElementById('qr-video');
+            const scannerStatus = document.getElementById('scanner-status');
+            
+            scannerDialog.classList.remove('hidden');
+            scannerStatus.textContent = 'Kamera wird gestartet...';
+
+            try {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    scannerStatus.textContent = 'Fehler: Kamerazugriff nicht unterstützt.';
+                    alert('Kamerazugriff wird von Ihrem Browser nicht unterstützt.');
+                    closeBarcodeScannerAndShowFallback(currentMaterialInput); // Fallback auf manuelle Eingabe
+                    return;
+                }
+
+                // Wir geben dem Scanner "Hints" (Hinweise), welche Formate er suchen soll.
+                const hints = new Map();
+                const formats = [
+                    ZXing.BarcodeFormat.CODE_128, // Wichtig für Ihren Barcode
+                    ZXing.BarcodeFormat.CODE_39,
+                    ZXing.BarcodeFormat.EAN_13,
+                    ZXing.BarcodeFormat.QR_CODE // Wir lassen QR-Codes weiterhin aktiviert
+                ];
+                hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+
+                // Initialisieren des Readers mit den neuen Hinweisen.
+                codeReader = new ZXing.BrowserMultiFormatReader(hints);
+
+                codeReader.decodeFromVideoDevice(null, 'qr-video', (result, err) => {
+                    if (result) {
+                        const scannedBarcode = result.text;
+                        console.log('Barcode gescannt:', scannedBarcode);
+                        if (currentMaterialInput) {
+                            currentMaterialInput.value = scannedBarcode;
+                            checkMaterialNumber(currentMaterialInput);
+                        }
+                        closeBarcodeScanner();
+                    }
+                    if (err && !(err instanceof ZXing.NotFoundException)) {
+                        console.error('Scan-Fehler:', err);
+                        scannerStatus.textContent = `Fehler beim Scannen: ${err.message}`;
+                    }
+                });
+
+                scannerStatus.textContent = 'Scannen läuft... Halten Sie den Barcode vor die Kamera.';
+
+            } catch (err) {
+                console.error('Zugriff auf die Kamera fehlgeschlagen:', err);
+                let errorMessage = 'Unbekannter Fehler beim Kamerazugriff.';
+                if (err.name === 'NotAllowedError') {
+                    errorMessage = 'Kamerazugriff wurde verweigert. Bitte erlauben Sie den Zugriff in Ihren Browsereinstellungen.';
+                } else if (err.name === 'NotFoundError') {
+                    errorMessage = 'Keine Kamera gefunden.';
+                }
+                
+                scannerStatus.textContent = `Fehler: ${errorMessage}`;
+                alert(`${errorMessage}\nBitte Materialnummer manuell eingeben.`);
+                closeBarcodeScannerAndShowFallback(currentMaterialInput); // Fallback auf manuelle Eingabe
+            }
+        }
+
+        function closeBarcodeScanner() {
+            const scannerDialog = document.getElementById('barcodeScannerDialog');
+            const qrVideo = document.getElementById('qr-video');
+            
+            if (codeReader) {
+                codeReader.reset(); // Kamera und Stream stoppen
+            }
+            scannerDialog.classList.add('hidden');
+            qrVideo.srcObject = null; // Video-Stream leeren
+            currentMaterialInput = null; // Aktuelles Input-Feld zurücksetzen
+        }
+
+        function closeBarcodeScannerAndShowFallback(inputElement) {
+            closeBarcodeScanner(); // Schließt den Dialog und stoppt die Kamera
+            // Führt die manuelle Eingabe NACH dem Schließen aus
+            setTimeout(() => {
+                const barcode = prompt(`Kamerazugriff fehlgeschlagen. Bitte Materialnummer manuell eingeben:`);
+                if (barcode && inputElement) {
+                    inputElement.value = barcode;
+                    checkMaterialNumber(inputElement);
+                }
+            }, 100); // Eine kleine Verzögerung stellt sicher, dass der Dialog erst geschlossen ist
+        }
+
+        // --- ENDE: KORRIGIERTER BEREICH ---
+    </script>
+
+<script>
+async function applyZoomToCamera(stream) {
+    const [track] = stream.getVideoTracks();
+    const capabilities = track.getCapabilities();
+    if ('zoom' in capabilities) {
+        const settings = track.getSettings();
+        const constraints = {
+            advanced: [{ zoom: Math.min(capabilities.zoom.max, 4) }]
+        };
+        try {
+            await track.applyConstraints(constraints);
+            console.log("4x zoom applied.");
+        } catch (err) {
+            console.warn("Zoom could not be applied:", err);
+        }
+    } else {
+        console.log("Zoom not supported on this device.");
+    }
+}
+
+// Patch getUserMedia to apply zoom after camera starts
+const originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+navigator.mediaDevices.getUserMedia = async function(constraints) {
+    const stream = await originalGetUserMedia(constraints);
+    applyZoomToCamera(stream);
+    return stream;
+};
+</script>
 </body>
 </html>
