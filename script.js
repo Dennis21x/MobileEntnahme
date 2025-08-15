@@ -754,7 +754,7 @@ function exportToCSV(data, filename) {
         alert('Keine Daten zum Exportieren vorhanden.'); 
         return; 
     }
-    let csvContent = 'Datum;Mitarbeiter;Vorgesetzter;Kostenstelle;Auftrag;Projekt-Nr;Eingegebene-Nr;SAP-Nr;Beschreibung;ME;Menge\n';
+    let csvContent = 'Datum;Mitarbeiter;Vorgesetzter;Kostenstelle;Auftrag;Projekt-Nr;Material-Nr;Beschreibung;ME;Menge\n';
     data.forEach(entry => {
         const dateStr = formatTimestamp(entry.timestamp);
         if(entry.materialien && entry.materialien.length > 0){
