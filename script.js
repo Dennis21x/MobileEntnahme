@@ -778,12 +778,46 @@ function exportToCSV(data, filename) {
 }
 
 function exportNormalHistoryToCSV() {
-    exportToCSV(normalHistoryData, 'entnahme_verlauf.csv');
-}
+            if (normalHistoryData.length === 0) { alert('Keine Daten zum Exportieren vorhanden.'); return; }
+            let csvContent = 'Datum;Mitarbeiter;Vorgesetzter;Kostenstelle;Auftrag;Projekt-Nr;Material-Nr;Beschreibung;ME;Menge\n';
+            normalHistoryData.forEach(entry => {
+                const dateStr = new Date(entry.entnahmedatum).toLocaleDateString('de-DE');
+                entry.materialien.forEach(m => {
+                    const meText = m.me && m.me.text ? m.me.text : '';
+                    csvContent += `${dateStr};${entry.mitarbeiter};${entry.vorgesetzter || ''};${entry.kostenstelle || ''};${entry.auftrag || ''};${entry.projektnr || ''};${m.materialNr || ''};${m.beschreibung || ''};${meText};${m.menge || ''}\n`;
+                });
+            });
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `sap_data.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
 
 function exportClarificationCasesToCSV() {
-    exportToCSV(clarificationCasesData, 'klaerungsfaelle.csv');
-}
+            if (clarificationCasesData.length === 0) { alert('Keine Klärungsfälle zum Exportieren vorhanden.'); return; }
+            let csvContent = 'Datum;Mitarbeiter;Vorgesetzter;Kostenstelle;Auftrag;Projekt-Nr;Material-Nr;Beschreibung;ME;Menge\n';
+            clarificationCasesData.forEach(entry => {
+                const dateStr = new Date(entry.entnahmedatum).toLocaleDateString('de-DE');
+                entry.materialien.forEach(m => {
+                    const meText = m.me && m.me.text ? m.me.text : '';
+                    csvContent += `${dateStr};${entry.mitarbeiter};${entry.vorgesetzter || ''};${entry.kostenstelle || ''};${entry.auftrag || ''};${entry.projektnr || ''};${m.materialNr || ''};${m.beschreibung || ''};${meText};${m.menge || ''}\n`;
+                });
+            });
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `klaerungsfaelle.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
 
 
 // --- ANPASSUNG: Barcode-Scanner-Funktion überarbeitet ---
