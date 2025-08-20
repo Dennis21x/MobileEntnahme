@@ -35,7 +35,8 @@ body {
     color: rgb(235, 0, 0);
 }
 /* Admin-Bereich, Verlauf und Klärungsfälle initial ausgeblendet */
-.admin-panel, .history-panel, .clarification-cases-panel {
+/* NEU: .reorder-history-panel hinzugefügt */
+.admin-panel, .history-panel, .clarification-cases-panel, .reorder-history-panel {
     display: none;
 }
 /* Menüleiste */
@@ -160,9 +161,10 @@ body {
     }
     
     .overflow-x-auto td:nth-of-type(1):before { content: "SAP-Nr."; }
-    .overflow-x-auto td:nth-of-type(2):before { content: ""; } /* Hide generic label for description */
-    .overflow-x-auto td:nth-of-type(3):before { content: "ME"; }
-    .overflow-x-auto td:nth-of-type(4):before { content: "Menge"; }
+    .overflow-x-auto td:nth-of-type(2):before { content: "Nachbestellen?"; }
+    .overflow-x-auto td:nth-of-type(3):before { content: ""; } /* Hide generic label for description */
+    .overflow-x-auto td:nth-of-type(4):before { content: "ME"; }
+    .overflow-x-auto td:nth-of-type(5):before { content: "Menge"; }
     
     /* --- ANPASSUNG: Besseres Layout für Beschreibung in mobiler Ansicht --- */
     .overflow-x-auto td[data-label="Beschreibung"] {
